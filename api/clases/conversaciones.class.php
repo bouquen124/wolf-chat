@@ -462,7 +462,7 @@ class conversaciones
             ultimo_mensaje.fecha_envio DESC,
             u.nombre,
             u.apellido
-    ";
+     ";
 
         $stmt = $this->pdo->prepare($sql);
 

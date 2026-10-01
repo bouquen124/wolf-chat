@@ -1,101 +1,110 @@
 <template>
-  <ion-page>
-    <ion-header>
+  <ion-page class="calendario-page">
+    <ion-header class="glass-header">
       <ion-toolbar>
         <ion-buttons slot="start">
-          <ion-button @click="mesAnterior">
+          <ion-button class="boton-navegacion" @click="mesAnterior">
             <ion-icon :icon="chevronBackOutline" />
           </ion-button>
         </ion-buttons>
+        <ion-title>{{ nombreMes }} {{ anio }}</ion-title>
 
+        <ion-buttons slot="end">
+          <ion-button class="boton-navegacion" @click="mesSiguiente">
+            <ion-icon :icon="chevronForwardOutline" />
+          </ion-button>
+        </ion-buttons>
+      </ion-toolbar>
+    </ion-header>
 
-    <ion-title>{{ nombreMes }} {{ anio }}</ion-title>
+    <ion-content :fullscreen="true">
+      <div class="glow-emerald"></div>
+      <div class="glow-cyan"></div>
 
-    <ion-buttons slot="end">
-      <ion-button @click="mesSiguiente">
-        <ion-icon :icon="chevronForwardOutline" />
-      </ion-button>
-    </ion-buttons>
-  </ion-toolbar>
-</ion-header>
+      <div class="contenido">
+        <div class="calendario-card">
+          <div class="dias-semana">
+            <div v-for="dia in diasSemana" :key="dia">
+              {{ dia }}
+            </div>
+          </div>
 
-<ion-content>
-  <div class="calendario">
-    <div class="dias-semana">
-      <div v-for="dia in diasSemana" :key="dia">
-        {{ dia }}
+          <div class="dias">
+            <button
+              v-for="dia in diasCalendario"
+              :key="dia.key"
+              :class="[
+                'dia',
+                {
+                  'otro-mes': !dia.esMesActual,
+                  hoy: dia.esHoy,
+                  seleccionado: dia.fecha === fechaSeleccionada,
+                },
+              ]"
+              @click="seleccionarDia(dia)"
+            >
+              <span>{{ dia.numero }}</span>
+
+              <div
+                v-if="tieneEventos(dia.fecha)"
+                class="indicador-evento"
+              ></div>
+            </button>
+          </div>
+        </div>
+
+        <div class="eventos">
+          <div class="eventos-header">
+            <div>
+              <span class="eventos-label">AGENDA</span>
+              <h2>{{ fechaFormateada }}</h2>
+            </div>
+
+            <ion-button
+              class="boton-evento"
+              shape="round"
+              size="small"
+              @click="agregarEvento"
+            >
+              <ion-icon slot="start" :icon="addOutline" />
+              Evento
+            </ion-button>
+          </div>
+
+          <ion-list v-if="eventosDelDia.length" class="lista-eventos">
+            <ion-item
+              v-for="evento in eventosDelDia"
+              :key="evento.id"
+              class="evento-card"
+              lines="none"
+            >
+              <div
+                slot="start"
+                class="color-evento"
+                :style="{ background: evento.color }"
+              ></div>
+
+              <ion-label>
+                <h2>{{ evento.titulo }}</h2>
+                <p>{{ evento.hora }}</p>
+              </ion-label>
+            </ion-item>
+          </ion-list>
+
+          <div v-else class="sin-eventos">
+            <div class="icono-sin-eventos">
+              <ion-icon :icon="calendarOutline" />
+            </div>
+            <p>No hay eventos para este día</p>
+            <span>Agrega una nueva actividad</span>
+          </div>
+        </div>
       </div>
-    </div>
-
-    <div class="dias">
-      <button
-        v-for="dia in diasCalendario"
-        :key="dia.key"
-        :class="[
-          'dia',
-          {
-            'otro-mes': !dia.esMesActual,
-            'hoy': dia.esHoy,
-            'seleccionado': dia.fecha === fechaSeleccionada
-          }
-        ]"
-        @click="seleccionarDia(dia)"
-      >
-        <span>{{ dia.numero }}</span>
-
-        <div
-          v-if="tieneEventos(dia.fecha)"
-          class="indicador-evento"
-        ></div>
-      </button>
-    </div>
-  </div>
-
-  <div class="eventos">
-    <div class="eventos-header">
-      <h2>{{ fechaFormateada }}</h2>
-
-      <ion-button
-        shape="round"
-        size="small"
-        @click="agregarEvento"
-      >
-        <ion-icon slot="start" :icon="addOutline" />
-        Evento
-      </ion-button>
-    </div>
-
-    <ion-list v-if="eventosDelDia.length">
-      <ion-item
-        v-for="evento in eventosDelDia"
-        :key="evento.id"
-      >
-        <div
-          slot="start"
-          class="color-evento"
-          :style="{ background: evento.color }"
-        ></div>
-
-        <ion-label>
-          <h2>{{ evento.titulo }}</h2>
-          <p>{{ evento.hora }}</p>
-        </ion-label>
-      </ion-item>
-    </ion-list>
-
-    <div v-else class="sin-eventos">
-      <ion-icon :icon="calendarOutline" />
-      <p>No hay eventos para este día</p>
-    </div>
-  </div>
-</ion-content>
-
-
+    </ion-content>
   </ion-page>
 </template>
-
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, ref } from "vue";
 import {
   IonPage,
   IonHeader,
@@ -107,16 +116,14 @@ import {
   IonContent,
   IonList,
   IonItem,
-  IonLabel
-} from '@ionic/vue';
-
+  IonLabel,
+} from "@ionic/vue";
 import {
   addOutline,
   chevronBackOutline,
   chevronForwardOutline,
-  calendarOutline
-} from 'ionicons/icons';
-
+  calendarOutline,
+} from "ionicons/icons";
 interface Evento {
   id: number;
   fecha: string;
@@ -124,7 +131,6 @@ interface Evento {
   hora: string;
   color: string;
 }
-
 interface DiaCalendario {
   key: string;
   fecha: string;
@@ -132,166 +138,109 @@ interface DiaCalendario {
   esMesActual: boolean;
   esHoy: boolean;
 }
-
 const fechaActual = new Date();
-
 const mes = ref(fechaActual.getMonth());
 const anio = ref(fechaActual.getFullYear());
-
-const fechaSeleccionada = ref(
-  fechaActual.toISOString().split('T')[0]
-);
-
-const diasSemana = [
-  'Dom',
-  'Lun',
-  'Mar',
-  'Mié',
-  'Jue',
-  'Vie',
-  'Sáb'
-];
-
+const fechaSeleccionada = ref(fechaActual.toISOString().split("T")[0]);
+const diasSemana = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
 const eventos = ref<Evento[]>([
   {
     id: 1,
-    fecha: fechaActual.toISOString().split('T')[0],
-    titulo: 'Reunión de trabajo',
-    hora: '10:00',
-    color: '#6366f1'
+    fecha: fechaActual.toISOString().split("T")[0],
+    titulo: "Reunión de trabajo",
+    hora: "10:00",
+    color: "#6366f1",
   },
   {
     id: 2,
-    fecha: fechaActual.toISOString().split('T')[0],
-    titulo: 'Comida con amigos',
-    hora: '14:30',
-    color: '#25d366'
+    fecha: fechaActual.toISOString().split("T")[0],
+    titulo: "Comida con amigos",
+    hora: "14:30",
+    color: "#25d366",
   },
   {
     id: 3,
-    fecha: fechaActual.toISOString().split('T')[0],
-    titulo: 'Entrenamiento',
-    hora: '19:00',
-    color: '#f59e0b'
-  }
+    fecha: fechaActual.toISOString().split("T")[0],
+    titulo: "Entrenamiento",
+    hora: "19:00",
+    color: "#f59e0b",
+  },
 ]);
-
 const nombreMes = computed(() => {
   const fecha = new Date(anio.value, mes.value, 1);
-
-  return fecha.toLocaleDateString('es-MX', {
-    month: 'long'
-  }).replace(/^./, letra => letra.toUpperCase());
+  return fecha
+    .toLocaleDateString("es-MX", { month: "long" })
+    .replace(/^./, (letra) => letra.toUpperCase());
 });
-
 const diasCalendario = computed<DiaCalendario[]>(() => {
   const primerDia = new Date(anio.value, mes.value, 1);
   const ultimoDia = new Date(anio.value, mes.value + 1, 0);
-
   const primerDiaSemana = primerDia.getDay();
   const totalDias = ultimoDia.getDate();
-
   const dias: DiaCalendario[] = [];
-
-  const diasMesAnterior = new Date(
-    anio.value,
-    mes.value,
-    0
-  ).getDate();
-
+  const diasMesAnterior = new Date(anio.value, mes.value, 0).getDate();
   for (let i = primerDiaSemana - 1; i >= 0; i--) {
     const numero = diasMesAnterior - i;
-    const fecha = new Date(
-      anio.value,
-      mes.value - 1,
-      numero
-    );
-
+    const fecha = new Date(anio.value, mes.value - 1, numero);
     dias.push(crearDia(fecha, false));
   }
-
   for (let numero = 1; numero <= totalDias; numero++) {
-    const fecha = new Date(
-      anio.value,
-      mes.value,
-      numero
-    );
-
+    const fecha = new Date(anio.value, mes.value, numero);
     dias.push(crearDia(fecha, true));
   }
-
   let siguiente = 1;
-
   while (dias.length < 42) {
-    const fecha = new Date(
-      anio.value,
-      mes.value + 1,
-      siguiente
-    );
-
+    const fecha = new Date(anio.value, mes.value + 1, siguiente);
     dias.push(crearDia(fecha, false));
     siguiente++;
   }
-
   return dias;
 });
-
 const eventosDelDia = computed(() => {
   return eventos.value.filter(
-    evento => evento.fecha === fechaSeleccionada.value
+    (evento) => evento.fecha === fechaSeleccionada.value,
   );
 });
-
 const fechaFormateada = computed(() => {
   const [anioSeleccionado, mesSeleccionado, diaSeleccionado] =
-    fechaSeleccionada.value.split('-').map(Number);
-
+    fechaSeleccionada.value.split("-").map(Number);
   const fecha = new Date(
     anioSeleccionado,
     mesSeleccionado - 1,
-    diaSeleccionado
+    diaSeleccionado,
   );
-
-  return fecha.toLocaleDateString('es-MX', {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long'
-  }).replace(/^./, letra => letra.toUpperCase());
+  return fecha
+    .toLocaleDateString("es-MX", {
+      weekday: "long",
+      day: "numeric",
+      month: "long",
+    })
+    .replace(/^./, (letra) => letra.toUpperCase());
 });
-
-const crearDia = (
-  fecha: Date,
-  esMesActual: boolean
-): DiaCalendario => {
+const crearDia = (fecha: Date, esMesActual: boolean): DiaCalendario => {
   const fechaTexto = formatearFecha(fecha);
-
   return {
     key: fechaTexto,
     fecha: fechaTexto,
     numero: fecha.getDate(),
     esMesActual,
-    esHoy:
-      fecha.toDateString() === fechaActual.toDateString()
+    esHoy: fecha.toDateString() === fechaActual.toDateString(),
   };
 };
-
 const formatearFecha = (fecha: Date) => {
   const anio = fecha.getFullYear();
-  const mes = String(fecha.getMonth() + 1).padStart(2, '0');
-  const dia = String(fecha.getDate()).padStart(2, '0');
-
+  const mes = String(fecha.getMonth() + 1).padStart(2, "0");
+  const dia = String(fecha.getDate()).padStart(2, "0");
   return `${anio}-${mes}-${dia}`;
 };
-
 const seleccionarDia = (dia: DiaCalendario) => {
   fechaSeleccionada.value = dia.fecha;
-
   if (!dia.esMesActual) {
-    mes.value = new Date(dia.fecha).getMonth();
-    anio.value = new Date(dia.fecha).getFullYear();
+    const fecha = new Date(`${dia.fecha}T00:00:00`);
+    mes.value = fecha.getMonth();
+    anio.value = fecha.getFullYear();
   }
 };
-
 const mesAnterior = () => {
   if (mes.value === 0) {
     mes.value = 11;
@@ -300,7 +249,6 @@ const mesAnterior = () => {
     mes.value--;
   }
 };
-
 const mesSiguiente = () => {
   if (mes.value === 11) {
     mes.value = 0;
@@ -309,72 +257,136 @@ const mesSiguiente = () => {
     mes.value++;
   }
 };
-
 const tieneEventos = (fecha: string) => {
-  return eventos.value.some(evento => evento.fecha === fecha);
+  return eventos.value.some((evento) => evento.fecha === fecha);
 };
-
 const agregarEvento = () => {
   const nuevoEvento: Evento = {
     id: Date.now(),
     fecha: fechaSeleccionada.value,
-    titulo: 'Nuevo evento',
-    hora: '12:00',
-    color: '#6366f1'
+    titulo: "Nuevo evento",
+    hora: "12:00",
+    color: "#6366f1",
   };
-
   eventos.value.push(nuevoEvento);
 };
 </script>
-
 <style scoped>
-.calendario {
-  padding: 14px;
+.calendario-page {
+  --ion-background-color: #090d16;
+  background: #090d16;
 }
-
+.glass-header {
+  background: transparent;
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  position: relative;
+  z-index: 20;
+}
+.glass-header ion-toolbar {
+  --background: rgba(9, 13, 22, 0.72);
+  --border-width: 0;
+}
+.glass-header ion-title {
+  color: #ffffff;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.4px;
+}
+.boton-navegacion {
+  --color: #ffffff;
+  --background: transparent;
+  --padding-start: 8px;
+  --padding-end: 8px;
+}
+.boton-navegacion ion-icon {
+  font-size: 24px;
+}
+ion-content {
+  --background: #090d16;
+  position: relative;
+  overflow: hidden;
+}
+.contenido {
+  position: relative;
+  z-index: 2;
+  padding: 12px 14px 100px;
+}
+.glow-emerald,
+.glow-cyan {
+  position: fixed;
+  width: 280px;
+  height: 280px;
+  border-radius: 50%;
+  filter: blur(100px);
+  opacity: 0.17;
+  pointer-events: none;
+  z-index: 0;
+}
+.glow-emerald {
+  top: 80px;
+  left: -140px;
+  background: #10b981;
+}
+.glow-cyan {
+  top: 390px;
+  right: -150px;
+  background: #06b6d4;
+}
+.calendario-card {
+  padding: 18px 12px 16px;
+  background: rgba(255, 255, 255, 0.045);
+  border: 1px solid rgba(255, 255, 255, 0.055);
+  border-radius: 24px;
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.22);
+}
 .dias-semana {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
   text-align: center;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--ion-color-medium);
-  margin-bottom: 8px;
+  font-size: 11px;
+  font-weight: 650;
+  color: #8993a5;
+  margin-bottom: 10px;
+  text-transform: uppercase;
 }
-
 .dias {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
   gap: 6px;
 }
-
 .dia {
   position: relative;
   height: 46px;
-  border: 0;
-  border-radius: 12px;
+  border: 1px solid transparent;
+  border-radius: 14px;
   background: transparent;
-  color: var(--ion-text-color);
+  color: #ffffff;
   font-size: 14px;
+  font-weight: 500;
+  transition: all 0.2s ease;
 }
-
+.dia:active {
+  transform: scale(0.92);
+}
 .dia.otro-mes {
-  color: var(--ion-color-medium);
+  color: #596273;
   opacity: 0.45;
 }
-
 .dia.hoy {
-  background: #6366f1;
-  color: white;
-  font-weight: bold;
+  background: linear-gradient(135deg, #10b981, #06b6d4);
+  color: #ffffff;
+  font-weight: 700;
+  box-shadow: 0 0 18px rgba(16, 185, 129, 0.25);
 }
-
 .dia.seleccionado:not(.hoy) {
-  background: rgba(99, 102, 241, 0.15);
-  color: #6366f1;
-  font-weight: 600;
+  background: rgba(16, 185, 129, 0.12);
+  border-color: rgba(16, 185, 129, 0.28);
+  color: #ffffff;
+  font-weight: 700;
 }
-
 .indicador-evento {
   position: absolute;
   bottom: 5px;
@@ -383,51 +395,118 @@ const agregarEvento = () => {
   width: 5px;
   height: 5px;
   border-radius: 50%;
-  background: #6366f1;
+  background: #10b981;
+  box-shadow: 0 0 8px rgba(16, 185, 129, 0.7);
 }
-
 .dia.hoy .indicador-evento {
-  background: white;
+  background: #ffffff;
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.6);
 }
-
 .eventos {
-  padding: 10px 16px 30px;
+  margin-top: 22px;
 }
-
 .eventos-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
+  gap: 12px;
+  padding: 0 4px 14px;
 }
-
+.eventos-label {
+  display: block;
+  margin-bottom: 4px;
+  color: #10b981;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1.2px;
+}
 .eventos-header h2 {
   margin: 0;
+  color: #ffffff;
   font-size: 18px;
+  font-weight: 650;
+}
+.boton-evento {
+  --background: linear-gradient(135deg, #10b981, #06b6d4);
+  --color: #ffffff;
+  --border-radius: 18px;
+  --box-shadow: 0 6px 18px rgba(16, 185, 129, 0.2);
+  font-weight: 600;
+  text-transform: none;
+}
+.lista-eventos {
+  background: transparent;
+  padding: 0;
+}
+.evento-card {
+  --background: rgba(255, 255, 255, 0.045);
+  --background-activated: rgba(255, 255, 255, 0.08);
+  --color: #ffffff;
+  --inner-border-width: 0;
+  --padding-start: 14px;
+  --padding-end: 14px;
+  --min-height: 68px;
+  margin-bottom: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.055);
+  border-radius: 18px;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+  overflow: hidden;
+}
+.color-evento {
+  width: 5px;
+  height: 38px;
+  margin-right: 12px;
+  border-radius: 8px;
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.18);
+}
+.evento-card h2 {
+  margin: 0 0 4px;
+  color: #ffffff;
+  font-size: 15px;
   font-weight: 600;
 }
-
-.color-evento {
-  width: 6px;
-  height: 42px;
-  border-radius: 4px;
+.evento-card p {
+  margin: 0;
+  color: #8993a5;
+  font-size: 13px;
 }
-
 .sin-eventos {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 40px 20px;
-  color: var(--ion-color-medium);
+  padding: 42px 20px;
+  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 22px;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
 }
-
+.icono-sin-eventos {
+  width: 58px;
+  height: 58px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 12px;
+  border-radius: 50%;
+  background: rgba(16, 185, 129, 0.1);
+  border: 1px solid rgba(16, 185, 129, 0.18);
+  color: #10b981;
+}
 .sin-eventos ion-icon {
-  font-size: 42px;
-  margin-bottom: 10px;
+  font-size: 28px;
 }
-
 .sin-eventos p {
-  margin: 0;
+  margin: 0 0 5px;
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 600;
+}
+.sin-eventos span {
+  color: #737e91;
+  font-size: 12px;
 }
 </style>

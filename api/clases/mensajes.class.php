@@ -1,3 +1,4 @@
+
 <?php
 
 class mensajes
@@ -33,8 +34,7 @@ class mensajes
         $conversacionId = isset($p['conversacion_id']) ? (int)$p['conversacion_id'] : 0;
         $mensaje = trim($p['mensaje'] ?? '');
 
-        if (!$token || !$conversacionId || $mensaje === '')
-        {
+        if (!$token || !$conversacionId || $mensaje === '') {
             print json_encode([
                 'ok' => false,
                 'error' => 'Datos incompletos'
@@ -45,8 +45,7 @@ class mensajes
 
         $usuarioId = $this->validarSesion($token);
 
-        if (!$usuarioId)
-        {
+        if (!$usuarioId) {
             print json_encode([
                 'ok' => false,
                 'error' => 'Sesión no válida'
@@ -68,8 +67,7 @@ class mensajes
             $conversacionId
         ]);
 
-        if (!$stmt->fetchColumn())
-        {
+        if (!$stmt->fetchColumn()) {
             print json_encode([
                 'ok' => false,
                 'error' => 'La conversación no existe'
@@ -93,8 +91,7 @@ class mensajes
             $usuarioId
         ]);
 
-        if (!$stmt->fetchColumn())
-        {
+        if (!$stmt->fetchColumn()) {
             print json_encode([
                 'ok' => false,
                 'error' => 'No perteneces a esta conversación'
@@ -179,8 +176,7 @@ class mensajes
         $token = $p['token'] ?? '';
         $conversacionId = isset($p['conversacion_id']) ? (int)$p['conversacion_id'] : 0;
 
-        if (!$token || !$conversacionId)
-        {
+        if (!$token || !$conversacionId) {
             print json_encode([
                 'ok' => false,
                 'error' => 'Datos incompletos'
@@ -191,8 +187,7 @@ class mensajes
 
         $usuarioId = $this->validarSesion($token);
 
-        if (!$usuarioId)
-        {
+        if (!$usuarioId) {
             print json_encode([
                 'ok' => false,
                 'error' => 'Sesión no válida'
@@ -216,8 +211,7 @@ class mensajes
             $usuarioId
         ]);
 
-        if (!$stmt->fetchColumn())
-        {
+        if (!$stmt->fetchColumn()) {
             print json_encode([
                 'ok' => false,
                 'error' => 'No perteneces a esta conversación'
@@ -225,6 +219,23 @@ class mensajes
 
             return;
         }
+
+        $sql = "
+            UPDATE mensaje_destinatarios md
+            INNER JOIN mensajes m
+                ON m.id = md.mensaje_id
+            SET md.estado = 'leido'
+            WHERE md.usuario_id = ?
+            AND m.conversacion_id = ?
+            AND md.estado <> 'leido'
+            AND m.estado <> 'eliminado'
+        ";
+
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute([
+            $usuarioId,
+            $conversacionId
+        ]);
 
         $sql = "
             SELECT
