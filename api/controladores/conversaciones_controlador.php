@@ -4,8 +4,7 @@ header("Access-Control-Allow-Origin: http://localhost:8100");
 header("Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS");
 header("Access-Control-Allow-Headers: Content-Type");
 
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS')
-{
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);
     exit;
 }
@@ -13,8 +12,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS')
 include_once("../config/database.php");
 include_once("../clases/conversaciones.class.php");
 
-switch ($_GET['task'])
-{
+switch ($_GET['task']) {
     case "crearConversacion":
 
         $reg = new conversaciones($pdo);
@@ -41,6 +39,18 @@ switch ($_GET['task'])
         $reg = new conversaciones($pdo);
         $reg->obtenerChats($_POST, $_GET);
 
+        break;
+
+    case "crearGrupo":
+
+        $reg = new conversaciones($pdo);
+        $reg->crearGrupo($_POST, $_GET);
+
+        break;
+
+    case "obtenerGrupos":
+        $reg = new conversaciones($pdo);
+        $reg->obtenerGrupos($_POST, $_GET);
         break;
 
     default:

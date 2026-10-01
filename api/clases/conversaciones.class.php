@@ -335,138 +335,149 @@ class conversaciones
         }
 
         $sql = "
+     SELECT
+        chats.contacto_id,
+        u.nombre,
+        u.apellido,
+        u.foto,
+        chats.conversacion_id,
+        ultimo_mensaje.mensaje,
+        ultimo_mensaje.mensaje_tipo,
+        ultimo_mensaje.fecha_envio,
+        CASE
+            WHEN ultimo_mensaje.remitente_id = ? THEN ultimo_mensaje.estado_mensaje
+            ELSE NULL
+        END AS estado_ultimo_mensaje,
+        COALESCE(pendientes.no_leidos, 0) AS no_leidos
+
+     FROM
+     (
         SELECT
-            chats.contacto_id,
-            u.nombre,
-            u.apellido,
-            u.foto,
-            chats.conversacion_id,
-            ultimo_mensaje.mensaje,
-            ultimo_mensaje.mensaje_tipo,
-            ultimo_mensaje.fecha_envio,
-            COALESCE(pendientes.no_leidos, 0) AS no_leidos
+            ct.contacto_id,
 
-        FROM
-        (
-            SELECT
-                ct.contacto_id,
-
-                (
-                    SELECT c.id
-                    FROM conversaciones c
-                    INNER JOIN conversacion_usuarios cu1
-                        ON cu1.conversacion_id = c.id
-                    INNER JOIN conversacion_usuarios cu2
-                        ON cu2.conversacion_id = c.id
-                    WHERE c.tipo = 'privada'
-                    AND c.estado = 'activa'
-                    AND cu1.usuario_id = ?
-                    AND cu1.estado = 'activo'
-                    AND cu2.usuario_id = ct.contacto_id
-                    AND cu2.estado = 'activo'
-                    LIMIT 1
-                ) AS conversacion_id
-
-            FROM contactos ct
-
-            WHERE ct.usuario_id = ?
-
-            UNION
-
-            SELECT
-                cu2.usuario_id AS contacto_id,
-                c.id AS conversacion_id
-
-            FROM conversaciones c
-
-            INNER JOIN conversacion_usuarios cu1
-                ON cu1.conversacion_id = c.id
-
-            INNER JOIN conversacion_usuarios cu2
-                ON cu2.conversacion_id = c.id
-
-            WHERE c.tipo = 'privada'
-            AND c.estado = 'activa'
-            AND cu1.usuario_id = ?
-            AND cu1.estado = 'activo'
-            AND cu2.usuario_id <> ?
-            AND cu2.estado = 'activo'
-        ) chats
-
-        INNER JOIN usuarios u
-            ON u.id = chats.contacto_id
-
-        LEFT JOIN
-        (
-            SELECT
-                m1.conversacion_id,
-                m1.mensaje,
-                m1.mensaje_tipo,
-                m1.fecha_envio
-
-            FROM mensajes m1
-
-            INNER JOIN
             (
-                SELECT
-                    conversacion_id,
-                    MAX(id) AS id
+                SELECT c.id
+                FROM conversaciones c
+                INNER JOIN conversacion_usuarios cu1
+                    ON cu1.conversacion_id = c.id
+                INNER JOIN conversacion_usuarios cu2
+                    ON cu2.conversacion_id = c.id
+                WHERE c.tipo = 'privada'
+                AND c.estado = 'activa'
+                AND cu1.usuario_id = ?
+                AND cu1.estado = 'activo'
+                AND cu2.usuario_id = ct.contacto_id
+                AND cu2.estado = 'activo'
+                LIMIT 1
+            ) AS conversacion_id
 
-                FROM mensajes
+        FROM contactos ct
 
-                WHERE estado <> 'eliminado'
+        WHERE ct.usuario_id = ?
 
-                GROUP BY conversacion_id
-            ) ultimo
+        UNION
 
-                ON ultimo.conversacion_id = m1.conversacion_id
-                AND ultimo.id = m1.id
+        SELECT
+            cu2.usuario_id AS contacto_id,
+            c.id AS conversacion_id
 
-            WHERE m1.estado <> 'eliminado'
+        FROM conversaciones c
 
-        ) ultimo_mensaje
+        INNER JOIN conversacion_usuarios cu1
+            ON cu1.conversacion_id = c.id
 
-            ON ultimo_mensaje.conversacion_id = chats.conversacion_id
+        INNER JOIN conversacion_usuarios cu2
+            ON cu2.conversacion_id = c.id
 
-        LEFT JOIN
+        WHERE c.tipo = 'privada'
+        AND c.estado = 'activa'
+        AND cu1.usuario_id = ?
+        AND cu1.estado = 'activo'
+        AND cu2.usuario_id <> ?
+        AND cu2.estado = 'activo'
+     ) chats
+
+     INNER JOIN usuarios u
+        ON u.id = chats.contacto_id
+
+     LEFT JOIN
+     (
+        SELECT
+            m1.conversacion_id,
+            m1.remitente_id,
+            m1.mensaje,
+            m1.mensaje_tipo,
+            m1.fecha_envio,
+            md1.estado AS estado_mensaje
+
+        FROM mensajes m1
+
+        LEFT JOIN mensaje_destinatarios md1
+            ON md1.mensaje_id = m1.id
+            AND md1.usuario_id <> m1.remitente_id
+
+        INNER JOIN
         (
             SELECT
-                md.usuario_id,
-                m.conversacion_id,
-                COUNT(*) AS no_leidos
+                conversacion_id,
+                MAX(id) AS id
 
-            FROM mensaje_destinatarios md
+            FROM mensajes
 
-            INNER JOIN mensajes m
-                ON m.id = md.mensaje_id
+            WHERE estado <> 'eliminado'
 
-            WHERE md.estado <> 'leido'
-            AND m.estado <> 'eliminado'
+            GROUP BY conversacion_id
+        ) ultimo
 
-            GROUP BY
-                md.usuario_id,
-                m.conversacion_id
+            ON ultimo.conversacion_id = m1.conversacion_id
+            AND ultimo.id = m1.id
 
-        ) pendientes
+        WHERE m1.estado <> 'eliminado'
 
-            ON pendientes.usuario_id = ?
-            AND pendientes.conversacion_id = chats.conversacion_id
+     ) ultimo_mensaje
 
-        WHERE u.estado = 'activo'
+        ON ultimo_mensaje.conversacion_id = chats.conversacion_id
 
-        ORDER BY
-            CASE
-                WHEN ultimo_mensaje.fecha_envio IS NULL THEN 1
-                ELSE 0
-            END,
-            ultimo_mensaje.fecha_envio DESC,
-            u.nombre,
-            u.apellido
+     LEFT JOIN
+     (
+        SELECT
+            md.usuario_id,
+            m.conversacion_id,
+            COUNT(*) AS no_leidos
+
+        FROM mensaje_destinatarios md
+
+        INNER JOIN mensajes m
+            ON m.id = md.mensaje_id
+
+        WHERE md.estado <> 'leido'
+        AND m.estado <> 'eliminado'
+
+        GROUP BY
+            md.usuario_id,
+            m.conversacion_id
+
+     ) pendientes
+
+        ON pendientes.usuario_id = ?
+        AND pendientes.conversacion_id = chats.conversacion_id
+
+     WHERE u.estado = 'activo'
+
+     ORDER BY
+        CASE
+            WHEN ultimo_mensaje.fecha_envio IS NULL THEN 1
+            ELSE 0
+        END,
+        ultimo_mensaje.fecha_envio DESC,
+        u.nombre,
+        u.apellido
      ";
 
         $stmt = $this->pdo->prepare($sql);
 
         $stmt->execute([
+            $usuarioId,
             $usuarioId,
             $usuarioId,
             $usuarioId,
@@ -484,5 +495,318 @@ class conversaciones
             'ok' => true,
             'chats' => $resultado
         ], JSON_UNESCAPED_UNICODE);
+    }
+
+
+    public function obtenerGrupos($p, $g)
+    {
+        header('Content-Type: application/json; charset=utf-8');
+
+
+        $token = $p['token'] ?? '';
+
+        if (!$token) {
+            print json_encode([
+                'ok' => false,
+                'error' => 'Token requerido'
+            ], JSON_UNESCAPED_UNICODE);
+
+            return;
+        }
+
+        $usuarioId = $this->validarSesion($token);
+
+        if (!$usuarioId) {
+            print json_encode([
+                'ok' => false,
+                'error' => 'Sesión no válida'
+            ], JSON_UNESCAPED_UNICODE);
+
+            return;
+        }
+
+        $sql = "
+     SELECT
+        c.id AS conversacion_id,
+        c.nombre,
+        c.foto,
+        ultimo_mensaje.mensaje,
+        ultimo_mensaje.mensaje_tipo,
+        ultimo_mensaje.fecha_envio,
+        COALESCE(pendientes.no_leidos, 0) AS no_leidos
+
+     FROM conversaciones c
+
+     INNER JOIN conversacion_usuarios cu
+        ON cu.conversacion_id = c.id
+        AND cu.usuario_id = ?
+        AND cu.estado = 'activo'
+
+     LEFT JOIN
+     (
+        SELECT
+            m1.conversacion_id,
+            m1.mensaje,
+            m1.mensaje_tipo,
+            m1.fecha_envio
+
+        FROM mensajes m1
+
+        INNER JOIN
+        (
+            SELECT
+                conversacion_id,
+                MAX(id) AS id
+
+            FROM mensajes
+
+            WHERE estado <> 'eliminado'
+
+            GROUP BY conversacion_id
+
+        ) ultimo
+
+            ON ultimo.conversacion_id = m1.conversacion_id
+            AND ultimo.id = m1.id
+
+        WHERE m1.estado <> 'eliminado'
+
+     ) ultimo_mensaje
+
+        ON ultimo_mensaje.conversacion_id = c.id
+
+     LEFT JOIN
+     (
+        SELECT
+            md.usuario_id,
+            m.conversacion_id,
+            COUNT(*) AS no_leidos
+
+        FROM mensaje_destinatarios md
+
+        INNER JOIN mensajes m
+            ON m.id = md.mensaje_id
+
+        WHERE md.estado <> 'leido'
+        AND m.estado <> 'eliminado'
+
+        GROUP BY
+            md.usuario_id,
+            m.conversacion_id
+
+     ) pendientes
+
+        ON pendientes.usuario_id = ?
+        AND pendientes.conversacion_id = c.id
+
+     WHERE c.tipo = 'grupo'
+     AND c.estado = 'activa'
+
+     ORDER BY
+        CASE
+            WHEN ultimo_mensaje.fecha_envio IS NULL THEN 1
+            ELSE 0
+        END,
+        ultimo_mensaje.fecha_envio DESC,
+        c.nombre
+     ";
+
+        $stmt = $this->pdo->prepare($sql);
+
+        $stmt->execute([
+            $usuarioId,
+            $usuarioId
+        ]);
+
+        $resultado = $stmt->fetchAll();
+
+        foreach ($resultado as &$grupo) {
+            $grupo['no_leidos'] = (int)($grupo['no_leidos'] ?? 0);
+        }
+
+        print json_encode([
+            'ok' => true,
+            'grupos' => $resultado
+        ], JSON_UNESCAPED_UNICODE);
+    }
+
+
+    public function crearGrupo($p, $g)
+    {
+        header('Content-Type: application/json; charset=utf-8');
+
+        $token = $p['token'] ?? '';
+        $nombre = trim($p['nombre'] ?? '');
+        $usuarios = $p['usuarios'] ?? [];
+
+        if (!$token || !$nombre || !$usuarios) {
+            print json_encode([
+                'ok' => false,
+                'error' => 'Datos incompletos'
+            ], JSON_UNESCAPED_UNICODE);
+
+            return;
+        }
+
+        if (!is_array($usuarios)) {
+            $usuarios = json_decode($usuarios, true);
+        }
+
+        if (!is_array($usuarios)) {
+            print json_encode([
+                'ok' => false,
+                'error' => 'Integrantes no válidos'
+            ], JSON_UNESCAPED_UNICODE);
+
+            return;
+        }
+
+        $usuarioId = $this->validarSesion($token);
+
+        if (!$usuarioId) {
+            print json_encode([
+                'ok' => false,
+                'error' => 'Sesión no válida'
+            ], JSON_UNESCAPED_UNICODE);
+
+            return;
+        }
+
+        $integrantes = [];
+
+        foreach ($usuarios as $id) {
+            $id = (int)$id;
+
+            if ($id > 0 && $id !== (int)$usuarioId && !in_array($id, $integrantes, true)) {
+                $integrantes[] = $id;
+            }
+        }
+
+        if (!$integrantes) {
+            print json_encode([
+                'ok' => false,
+                'error' => 'Debes seleccionar al menos una persona integrante'
+            ], JSON_UNESCAPED_UNICODE);
+
+            return;
+        }
+
+        $placeholders = implode(',', array_fill(0, count($integrantes), '?'));
+
+        $sql = "
+     SELECT id
+     FROM usuarios
+     WHERE id IN ($placeholders)
+     AND estado = 'activo'  ";
+
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute($integrantes);
+
+        $usuariosValidos = $stmt->fetchAll(PDO::FETCH_COLUMN);
+
+        if (count($usuariosValidos) !== count($integrantes)) {
+            print json_encode([
+                'ok' => false,
+                'error' => 'Una o más personas seleccionadas no están disponibles'
+            ], JSON_UNESCAPED_UNICODE);
+
+            return;
+        }
+
+        try {
+
+            $this->pdo->beginTransaction();
+
+            $sql = "
+        INSERT INTO conversaciones
+        (
+            tipo,
+            nombre,
+            creador_id,
+            estado
+        )
+        VALUES
+        (
+            'grupo',
+            ?,
+            ?,
+            'activa'
+        )
+     ";
+
+            $stmt = $this->pdo->prepare($sql);
+            $stmt->execute([
+                $nombre,
+                $usuarioId
+            ]);
+
+            $conversacionId = $this->pdo->lastInsertId();
+
+            $sql = "
+        INSERT INTO conversacion_usuarios
+        (
+            conversacion_id,
+            usuario_id,
+            rol,
+            estado
+        )
+        VALUES
+        (
+            ?,
+            ?,
+            'administrador',
+            'activo'
+        )
+     ";
+
+            $stmt = $this->pdo->prepare($sql);
+            $stmt->execute([
+                $conversacionId,
+                $usuarioId
+            ]);
+
+            $sql = "
+        INSERT INTO conversacion_usuarios
+        (
+            conversacion_id,
+            usuario_id,
+            rol,
+            estado
+        )
+        VALUES
+        (
+            ?,
+            ?,
+            'miembro',
+            'activo'
+        )
+     ";
+
+            $stmt = $this->pdo->prepare($sql);
+
+            foreach ($integrantes as $integranteId) {
+                $stmt->execute([
+                    $conversacionId,
+                    $integranteId
+                ]);
+            }
+
+            $this->pdo->commit();
+
+            print json_encode([
+                'ok' => true,
+                'conversacion_id' => $conversacionId
+            ], JSON_UNESCAPED_UNICODE);
+        } catch (Exception $e) {
+
+            if ($this->pdo->inTransaction()) {
+                $this->pdo->rollBack();
+            }
+
+            print json_encode([
+                'ok' => false,
+                'error' => 'No se pudo crear el grupo'
+            ], JSON_UNESCAPED_UNICODE);
+        }
     }
 }

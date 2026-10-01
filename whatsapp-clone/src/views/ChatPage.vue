@@ -1,5 +1,3 @@
-C:\xampp\htdocs\new app\whatsapp-clone\src\views\ChatPage.vue
-
 <template>
   <ion-page class="chat-page">
     <ion-header class="ion-no-border header-transparent">
@@ -8,133 +6,145 @@ C:\xampp\htdocs\new app\whatsapp-clone\src\views\ChatPage.vue
           <ion-back-button default-href="/chats" />
         </ion-buttons>
 
-```
-    <ion-avatar slot="start" class="avatar-header">
-      <div class="avatar-ring">
-        <img :src="contacto.avatar" />
+        <ion-avatar slot="start" class="avatar-header">
+          <div class="avatar-ring">
+            <img :src="contacto.avatar" />
+          </div>
+        </ion-avatar>
+
+        <ion-title class="header-title">{{ contacto.nombre }}</ion-title>
+
+        <ion-button
+          v-if="contacto.id && !llamadaActiva"
+          slot="end"
+          fill="clear"
+          class="header-action"
+          @click="iniciarLlamada"
+        >
+          <ion-icon :icon="callOutline" />
+        </ion-button>
+
+        <ion-button
+          v-if="!yaAgregado && contacto.id"
+          slot="end"
+          fill="clear"
+          class="header-add"
+          @click="agregarContacto"
+        >
+          Agregar
+        </ion-button>
+      </ion-toolbar>
+    </ion-header>
+
+    <ion-content ref="contenido" class="chat-content" :fullscreen="true">
+      <div class="ambient-glow glow-emerald"></div>
+      <div class="ambient-glow glow-cyan"></div>
+
+      <div class="mensajes">
+        <div
+          v-for="mensaje in mensajes"
+          :key="mensaje.id"
+          class="mensaje"
+          :class="
+            esMiMensaje(mensaje.remitente_id) ? 'mensaje-yo' : 'mensaje-otro'
+          "
+        >
+          <div class="burbuja">
+            <div class="texto">
+              {{ mensaje.mensaje }}
+            </div>
+
+            <div class="hora">
+              {{ formatearHora(mensaje.fecha_envio) }}
+
+              <span
+                v-if="esMiMensaje(mensaje.remitente_id)"
+                class="estado-mensaje"
+                :class="{
+                  'mensaje-leido': mensaje.estado_mensaje === 'leido'
+                }"
+              >
+                {{
+                  mensaje.estado_mensaje === "leido" ||
+                  mensaje.estado_mensaje === "entregado"
+                    ? "✓✓"
+                    : "✓"
+                }}
+              </span>
+            </div>
+          </div>
+        </div>
       </div>
-    </ion-avatar>
+    </ion-content>
 
-    <ion-title class="header-title">{{ contacto.nombre }}</ion-title>
-
-    <ion-button
-      v-if="contacto.id && !llamadaActiva"
-      slot="end"
-      fill="clear"
-      class="header-action"
-      @click="iniciarLlamada"
-    >
-      <ion-icon :icon="callOutline" />
-    </ion-button>
-
-    <ion-button
-      v-if="!yaAgregado && contacto.id"
-      slot="end"
-      fill="clear"
-      class="header-add"
-      @click="agregarContacto"
-    >
-      Agregar
-    </ion-button>
-  </ion-toolbar>
-</ion-header>
-
-<ion-content class="chat-content" :fullscreen="true">
-  <div class="ambient-glow glow-emerald"></div>
-  <div class="ambient-glow glow-cyan"></div>
-
-  <div class="mensajes">
-    <div
-      v-for="mensaje in mensajes"
-      :key="mensaje.id"
-      class="mensaje"
-      :class="
-        esMiMensaje(mensaje.remitente_id) ? 'mensaje-yo' : 'mensaje-otro'
-      "
-    >
-      <div class="burbuja">
-        <div class="texto">
-          {{ mensaje.mensaje }}
+    <div v-if="llamadaActiva" class="llamada-activa">
+      <div class="llamada-info">
+        <div class="avatar-ring llamada-avatar-ring">
+          <ion-avatar class="avatar-llamada">
+            <img :src="contacto.avatar" />
+          </ion-avatar>
         </div>
 
-        <div class="hora">
-          {{ formatearHora(mensaje.fecha_envio) }}
+        <div>
+          <div class="nombre-llamada">
+            {{ contacto.nombre }}
+          </div>
+
+          <div class="estado-llamada">
+            {{ estadoLlamada }}
+          </div>
+
+          <div
+            v-if="estadoLlamada === 'Conectada'"
+            class="duracion-llamada"
+          >
+            {{ formatearDuracion(duracionLlamada) }}
+          </div>
         </div>
       </div>
-    </div>
-  </div>
-</ion-content>
 
-<div v-if="llamadaActiva" class="llamada-activa">
-  <div class="llamada-info">
-    <div class="avatar-ring llamada-avatar-ring">
-      <ion-avatar class="avatar-llamada">
-        <img :src="contacto.avatar" />
-      </ion-avatar>
-    </div>
-
-    <div>
-      <div class="nombre-llamada">
-        {{ contacto.nombre }}
-      </div>
-
-      <div class="estado-llamada">
-        {{ estadoLlamada }}
-      </div>
-
-      <div
-        v-if="estadoLlamada === 'Conectada'"
-        class="duracion-llamada"
+      <ion-button
+        class="boton-colgar"
+        shape="round"
+        @click="finalizarLlamadaActual"
       >
-        {{ formatearDuracion(duracionLlamada) }}
-      </div>
+        <ion-icon :icon="callOutline" />
+      </ion-button>
     </div>
-  </div>
 
-  <ion-button
-    class="boton-colgar"
-    shape="round"
-    @click="finalizarLlamadaActual"
-  >
-    <ion-icon :icon="callOutline" />
-  </ion-button>
-</div>
+    <div class="barra-mensaje">
+      <ion-input
+        v-model="nuevoMensaje"
+        placeholder="Escribe un mensaje..."
+        fill="outline"
+        :clear-input="true"
+        @keyup.enter="enviarMensaje"
+      />
 
-<div class="barra-mensaje">
-  <ion-input
-    v-model="nuevoMensaje"
-    placeholder="Escribe un mensaje..."
-    fill="outline"
-    :clear-input="true"
-    @keyup.enter="enviarMensaje"
-  />
+      <ion-button
+        shape="round"
+        class="boton-enviar"
+        :disabled="!nuevoMensaje.trim()"
+        @click="enviarMensaje"
+      >
+        <ion-icon :icon="sendOutline" />
+      </ion-button>
+    </div>
 
-  <ion-button
-    shape="round"
-    class="boton-enviar"
-    :disabled="!nuevoMensaje.trim()"
-    @click="enviarMensaje"
-  >
-    <ion-icon :icon="sendOutline" />
-  </ion-button>
-</div>
+    <audio ref="audioRemoto" autoplay playsinline></audio>
 
-<audio ref="audioRemoto" autoplay playsinline></audio>
-
-<ion-alert
-  :is-open="llamadaEntrante !== null"
-  header="Llamada entrante"
-  :message="mensajeLlamadaEntrante"
-  :buttons="botonesLlamada"
-  @didDismiss="cerrarLlamadaEntrante"
-/>
-```
-
+    <ion-alert
+      :is-open="llamadaEntrante !== null"
+      header="Llamada entrante"
+      :message="mensajeLlamadaEntrante()"
+      :buttons="botonesLlamada"
+      @didDismiss="cerrarLlamadaEntrante"
+    />
   </ion-page>
 </template>
 
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref, watch } from "vue";
+import { nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 import { useRoute } from "vue-router";
 import {
   IonPage,
@@ -161,6 +171,7 @@ interface Mensaje {
   fecha_envio: string;
   nombre: string;
   apellido: string;
+  estado_mensaje: "enviado" | "entregado" | "leido" | null;
 }
 
 interface Contacto {
@@ -204,6 +215,9 @@ const localStream = ref<MediaStream | null>(null);
 const remoteStream = ref<MediaStream | null>(null);
 const audioRemoto = ref<HTMLAudioElement | null>(null);
 
+// Referencia al ion-content para controlar el scroll
+const contenido = ref<InstanceType<typeof IonContent> | null>(null);
+
 let intervaloMensajes: ReturnType<typeof setInterval> | null = null;
 let intervaloLlamadas: ReturnType<typeof setInterval> | null = null;
 let intervaloWebRTC: ReturnType<typeof setInterval> | null = null;
@@ -211,12 +225,57 @@ let intervaloEstadoLlamada: ReturnType<typeof setInterval> | null = null;
 let intervaloContador: ReturnType<typeof setInterval> | null = null;
 
 let ultimoIceCandidateId = 0;
+let cargandoIce = false;
+
+// Control de mensajes / scroll
+let primeraCargaMensajes = true;
+let cargandoMensajes = false;
 
 const contacto = ref({
   id: 0,
   nombre: "Chat",
   avatar: "https://i.pravatar.cc/150?img=12",
 });
+
+/* ===================== SCROLL ===================== */
+
+const scrollAlFinal = async (duracion = 0) => {
+  await nextTick();
+
+  const el = contenido.value?.$el as
+    | (HTMLElement & { scrollToBottom?: (ms?: number) => Promise<void> })
+    | undefined;
+
+  if (!el || !el.scrollToBottom) {
+    return;
+  }
+
+  await el.scrollToBottom(duracion);
+
+  // Segundo intento por si el layout tardó en pintar los mensajes
+  setTimeout(() => {
+    el.scrollToBottom?.(0);
+  }, 80);
+};
+
+const estaCercaDelFinal = async () => {
+  const el = contenido.value?.$el as
+    | (HTMLElement & { getScrollElement?: () => Promise<HTMLElement> })
+    | undefined;
+
+  if (!el || !el.getScrollElement) {
+    return true;
+  }
+
+  const scrollEl = await el.getScrollElement();
+
+  const distancia =
+    scrollEl.scrollHeight - scrollEl.scrollTop - scrollEl.clientHeight;
+
+  return distancia < 150;
+};
+
+/* ===================== USUARIO / CONTACTO ===================== */
 
 const esMiMensaje = (remitenteId: number | string) => {
   if (usuarioId.value === null) {
@@ -370,6 +429,8 @@ const agregarContacto = async () => {
     alert("Error al agregar el contacto");
   }
 };
+
+/* ===================== WEBRTC ===================== */
 
 const crearConexionWebRTC = async () => {
   try {
@@ -596,9 +657,17 @@ const obtenerRespuesta = async () => {
 };
 
 const obtenerIceCandidatesWebRTC = async () => {
-  if (!llamadaId.value || !peerConnection.value) {
+  if (!llamadaId.value || !peerConnection.value || cargandoIce) {
     return;
   }
+
+  // Sin remoteDescription, addIceCandidate falla. Los candidatos se quedan
+  // en el servidor y se leen en cuanto ya exista.
+  if (!peerConnection.value.remoteDescription) {
+    return;
+  }
+
+  cargandoIce = true;
 
   try {
     const token = localStorage.getItem("token");
@@ -621,6 +690,7 @@ const obtenerIceCandidatesWebRTC = async () => {
           "Content-Type": "application/x-www-form-urlencoded",
         },
         body: datos.toString(),
+        cache: "no-store",
       },
     );
 
@@ -630,23 +700,36 @@ const obtenerIceCandidatesWebRTC = async () => {
       return;
     }
 
-    for (const candidato of resultado.candidates) {
+    for (const candidato of resultado.candidates || []) {
+      const pc = peerConnection.value;
+
+      // La llamada pudo cerrarse mientras se procesaba la lista
+      if (!pc || !pc.remoteDescription) {
+        return;
+      }
+
       try {
-        await peerConnection.value.addIceCandidate(
+        await pc.addIceCandidate(
           new RTCIceCandidate({
             candidate: candidato.candidate,
             sdpMid: candidato.sdp_mid,
-            sdpMLineIndex: candidato.sdp_m_line_index,
+            sdpMLineIndex:
+              candidato.sdp_m_line_index === null ||
+              candidato.sdp_m_line_index === undefined
+                ? null
+                : Number(candidato.sdp_m_line_index),
           }),
         );
-
-        ultimoIceCandidateId = Number(candidato.id);
       } catch (error) {
         console.error("Error al agregar ICE candidate:", error);
       }
+
+      ultimoIceCandidateId = Number(candidato.id);
     }
   } catch (error) {
     console.error("Error al obtener ICE candidates:", error);
+  } finally {
+    cargandoIce = false;
   }
 };
 
@@ -1125,6 +1208,7 @@ const cerrarConexionWebRTC = () => {
   remoteStream.value = null;
   llamadaId.value = null;
   ultimoIceCandidateId = 0;
+  cargandoIce = false;
 };
 
 const revisarLlamadaEntrante = async () => {
@@ -1192,24 +1276,45 @@ const botonesLlamada = [
   },
 ];
 
-const cargarMensajes = async () => {
+/* ===================== MENSAJES ===================== */
+
+const cargarMensajes = async (forzarScroll = false) => {
+  // Evita que se encimen peticiones si el servidor tarda más de 2 s
+  if (cargandoMensajes) {
+    return;
+  }
+
+  cargandoMensajes = true;
+
+  const idPeticion = String(route.params.id || "");
+
   try {
     const token = localStorage.getItem("token");
 
-    if (!token) {
+    if (!token || !idPeticion) {
       return;
     }
 
-    const conversacionId = route.params.id;
+    const ultimoId =
+      mensajes.value.length > 0
+        ? mensajes.value[mensajes.value.length - 1].id
+        : 0;
 
-    if (!conversacionId) {
-      return;
-    }
+    // Mis mensajes que todavía no están en "leido" (para refrescar sus palomitas)
+    const pendientes = mensajes.value
+      .filter(
+        (m) => esMiMensaje(m.remitente_id) && m.estado_mensaje !== "leido",
+      )
+      .slice(-100)
+      .map((m) => m.id)
+      .join(",");
 
     const datos = new URLSearchParams();
 
     datos.append("token", token);
-    datos.append("conversacion_id", String(conversacionId));
+    datos.append("conversacion_id", idPeticion);
+    datos.append("ultimo_id", String(ultimoId));
+    datos.append("pendientes", pendientes);
 
     const respuesta = await fetch(
       "http://localhost/new%20app/api/controladores/mensajes_controlador.php?task=obtenerMensajes",
@@ -1219,19 +1324,56 @@ const cargarMensajes = async () => {
           "Content-Type": "application/x-www-form-urlencoded",
         },
         body: datos.toString(),
+        cache: "no-store",
       },
     );
 
     const resultado = await respuesta.json();
+
+    // Si cambiaste de chat mientras llegaba la respuesta, se descarta
+    if (idPeticion !== String(route.params.id || "")) {
+      return;
+    }
 
     if (!resultado.ok) {
       console.error(resultado.error);
       return;
     }
 
-    mensajes.value = resultado.mensajes;
+    const nuevos: Mensaje[] = (resultado.mensajes || []).filter(
+      (m: Mensaje) => m.id > ultimoId,
+    );
+    const estados: { id: number; estado_mensaje: Mensaje["estado_mensaje"] }[] =
+      resultado.estados || [];
+
+    // Se mide ANTES de actualizar para saber si ya estabas abajo
+    const estabaAbajo = await estaCercaDelFinal();
+
+    if (nuevos.length > 0) {
+      mensajes.value = [...mensajes.value, ...nuevos];
+    }
+
+    if (estados.length > 0) {
+      const mapa = new Map(estados.map((e) => [Number(e.id), e.estado_mensaje]));
+
+      mensajes.value = mensajes.value.map((m) =>
+        mapa.has(m.id) ? { ...m, estado_mensaje: mapa.get(m.id) ?? null } : m,
+      );
+    }
+
+    if (primeraCargaMensajes) {
+      primeraCargaMensajes = false;
+      await scrollAlFinal(0);
+      return;
+    }
+
+    if (forzarScroll || (nuevos.length > 0 && estabaAbajo)) {
+      await scrollAlFinal(200);
+    }
   } catch (error) {
     console.error("Error al cargar mensajes:", error);
+  } finally {
+    cargandoMensajes = false;
   }
 };
 
@@ -1244,6 +1386,8 @@ const cargarConversacion = async () => {
 
   mensajes.value = [];
   yaAgregado.value = false;
+  primeraCargaMensajes = true;
+  cargandoMensajes = false; // por si quedó una petición del chat anterior
 
   await cargarContacto();
   await cargarMensajes();
@@ -1297,7 +1441,13 @@ const enviarMensaje = async () => {
 
     nuevoMensaje.value = "";
 
-    await cargarMensajes();
+    // Si el polling está a medio request, espera a que termine
+    while (cargandoMensajes) {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+
+    // Al enviar, siempre baja al último mensaje
+    await cargarMensajes(true);
   } catch (error) {
     console.error("Error al enviar mensaje:", error);
     alert("Error al enviar el mensaje");
@@ -1305,11 +1455,13 @@ const enviarMensaje = async () => {
 };
 
 const formatearHora = (fecha: string) => {
-  return new Date(fecha).toLocaleTimeString([], {
+  return new Date(fecha.replace(" ", "T")).toLocaleTimeString([], {
     hour: "2-digit",
     minute: "2-digit",
   });
 };
+
+/* ===================== CICLO DE VIDA ===================== */
 
 watch(
   () => route.params.id,
@@ -1516,6 +1668,18 @@ onUnmounted(() => {
 
 .mensaje-otro .hora {
   color: #94a3b8;
+}
+
+.estado-mensaje {
+  margin-left: 3px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: -1px;
+  color: #d1fae5;
+}
+
+.estado-mensaje.mensaje-leido {
+  color: #06b6d4;
 }
 
 .barra-mensaje {

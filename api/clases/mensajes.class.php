@@ -100,73 +100,88 @@ class mensajes
             return;
         }
 
-        $sql = "
-            INSERT INTO mensajes
-            (
-                conversacion_id,
-                remitente_id,
-                mensaje,
-                mensaje_tipo,
-                estado
-            )
-            VALUES
-            (
-                ?,
-                ?,
-                ?,
-                'texto',
-                'activo'
-            )
-        ";
+        try {
+            $this->pdo->beginTransaction();
 
-        $stmt = $this->pdo->prepare($sql);
-        $stmt->execute([
-            $conversacionId,
-            $usuarioId,
-            $mensaje
-        ]);
+            $sql = "
+                INSERT INTO mensajes
+                (
+                    conversacion_id,
+                    remitente_id,
+                    mensaje,
+                    mensaje_tipo,
+                    estado
+                )
+                VALUES
+                (
+                    ?,
+                    ?,
+                    ?,
+                    'texto',
+                    'activo'
+                )
+            ";
 
-        $mensajeId = $this->pdo->lastInsertId();
+            $stmt = $this->pdo->prepare($sql);
+            $stmt->execute([
+                $conversacionId,
+                $usuarioId,
+                $mensaje
+            ]);
 
-        $sql = "
-            INSERT INTO mensaje_destinatarios
-            (
-                mensaje_id,
-                usuario_id,
-                estado
-            )
-            SELECT
-                ?,
-                usuario_id,
-                'enviado'
-            FROM conversacion_usuarios
-            WHERE conversacion_id = ?
-            AND usuario_id <> ?
-            AND estado = 'activo'
-        ";
+            $mensajeId = $this->pdo->lastInsertId();
 
-        $stmt = $this->pdo->prepare($sql);
-        $stmt->execute([
-            $mensajeId,
-            $conversacionId,
-            $usuarioId
-        ]);
+            $sql = "
+                INSERT INTO mensaje_destinatarios
+                (
+                    mensaje_id,
+                    usuario_id,
+                    estado
+                )
+                SELECT
+                    ?,
+                    usuario_id,
+                    'enviado'
+                FROM conversacion_usuarios
+                WHERE conversacion_id = ?
+                AND usuario_id <> ?
+                AND estado = 'activo'
+            ";
 
-        $sql = "
-            UPDATE conversaciones
-            SET fecha_actualizacion = NOW()
-            WHERE id = ?
-        ";
+            $stmt = $this->pdo->prepare($sql);
+            $stmt->execute([
+                $mensajeId,
+                $conversacionId,
+                $usuarioId
+            ]);
 
-        $stmt = $this->pdo->prepare($sql);
-        $stmt->execute([
-            $conversacionId
-        ]);
+            $sql = "
+                UPDATE conversaciones
+                SET fecha_actualizacion = NOW()
+                WHERE id = ?
+            ";
 
-        print json_encode([
-            'ok' => true,
-            'mensaje_id' => $mensajeId
-        ], JSON_UNESCAPED_UNICODE);
+            $stmt = $this->pdo->prepare($sql);
+            $stmt->execute([
+                $conversacionId
+            ]);
+
+            $this->pdo->commit();
+
+            print json_encode([
+                'ok' => true,
+                'mensaje_id' => $mensajeId
+            ], JSON_UNESCAPED_UNICODE);
+        } catch (Exception $e) {
+            if ($this->pdo->inTransaction()) {
+                $this->pdo->rollBack();
+            }
+
+            print json_encode([
+                'ok' => false,
+                'error' => 'No se pudo enviar el mensaje'
+            ], JSON_UNESCAPED_UNICODE);
+        }
     }
 
     public function obtenerMensajes($p, $g)
@@ -175,6 +190,8 @@ class mensajes
 
         $token = $p['token'] ?? '';
         $conversacionId = isset($p['conversacion_id']) ? (int)$p['conversacion_id'] : 0;
+        $ultimoId = isset($p['ultimo_id']) ? (int)$p['ultimo_id'] : 0;
+        $limite = 100; // carga inicial
 
         if (!$token || !$conversacionId) {
             print json_encode([
@@ -220,11 +237,14 @@ class mensajes
             return;
         }
 
+        // Marca como leídos los mensajes que le llegaron a este usuario
         $sql = "
             UPDATE mensaje_destinatarios md
             INNER JOIN mensajes m
                 ON m.id = md.mensaje_id
-            SET md.estado = 'leido'
+            SET
+                md.estado = 'leido',
+                md.fecha_leido = NOW()
             WHERE md.usuario_id = ?
             AND m.conversacion_id = ?
             AND md.estado <> 'leido'
@@ -237,7 +257,8 @@ class mensajes
             $conversacionId
         ]);
 
-        $sql = "
+        // Base del SELECT (estado calculado solo para mis mensajes)
+        $base = "
             SELECT
                 m.id,
                 m.conversacion_id,
@@ -246,23 +267,115 @@ class mensajes
                 m.mensaje_tipo,
                 m.fecha_envio,
                 u.nombre,
-                u.apellido
+                u.apellido,
+                CASE
+                    WHEN m.remitente_id = ? THEN
+                        CASE
+                            WHEN md.total IS NULL THEN 'enviado'
+                            WHEN md.leidos = md.total THEN 'leido'
+                            WHEN md.leidos + md.entregados = md.total THEN 'entregado'
+                            ELSE 'enviado'
+                        END
+                    ELSE NULL
+                END AS estado_mensaje
             FROM mensajes m
             INNER JOIN usuarios u
                 ON u.id = m.remitente_id
+            LEFT JOIN
+            (
+                SELECT
+                    md2.mensaje_id,
+                    COUNT(*) AS total,
+                    SUM(md2.estado = 'leido') AS leidos,
+                    SUM(md2.estado = 'entregado') AS entregados
+                FROM mensaje_destinatarios md2
+                INNER JOIN mensajes m2
+                    ON m2.id = md2.mensaje_id
+                WHERE m2.conversacion_id = ?
+                GROUP BY md2.mensaje_id
+            ) md
+                ON md.mensaje_id = m.id
             WHERE m.conversacion_id = ?
             AND m.estado <> 'eliminado'
-            ORDER BY m.id ASC
         ";
 
-        $stmt = $this->pdo->prepare($sql);
-        $stmt->execute([
-            $conversacionId
-        ]);
+        if ($ultimoId > 0) {
+            // Solo lo nuevo
+            $sql = $base . " AND m.id > ? ORDER BY m.id ASC";
+
+            $stmt = $this->pdo->prepare($sql);
+            $stmt->execute([
+                $usuarioId,
+                $conversacionId,
+                $conversacionId,
+                $ultimoId
+            ]);
+
+            $mensajes = $stmt->fetchAll();
+        } else {
+            // Carga inicial: los últimos N, en orden ascendente
+            $sql = "
+                SELECT t.*
+                FROM (
+                    " . $base . "
+                    ORDER BY m.id DESC
+                    LIMIT " . (int)$limite . "
+                ) t
+                ORDER BY t.id ASC
+            ";
+
+            $stmt = $this->pdo->prepare($sql);
+            $stmt->execute([
+                $usuarioId,
+                $conversacionId,
+                $conversacionId
+            ]);
+
+            $mensajes = $stmt->fetchAll();
+        }
+
+        // Estado actualizado de mis mensajes que el cliente aún tiene como no leídos
+        $estados = [];
+
+        $pendientes = array_filter(
+            array_map('intval', explode(',', (string)($p['pendientes'] ?? ''))),
+            function ($id) {
+                return $id > 0;
+            }
+        );
+
+        $pendientes = array_slice(array_values(array_unique($pendientes)), 0, 200);
+
+        if ($pendientes) {
+            $placeholders = implode(',', array_fill(0, count($pendientes), '?'));
+
+            $sql = "
+                SELECT
+                    md2.mensaje_id AS id,
+                    CASE
+                        WHEN SUM(md2.estado = 'leido') = COUNT(*) THEN 'leido'
+                        WHEN SUM(md2.estado IN ('leido', 'entregado')) = COUNT(*) THEN 'entregado'
+                        ELSE 'enviado'
+                    END AS estado_mensaje
+                FROM mensaje_destinatarios md2
+                INNER JOIN mensajes m2
+                    ON m2.id = md2.mensaje_id
+                WHERE m2.conversacion_id = ?
+                AND m2.remitente_id = ?
+                AND m2.id IN ($placeholders)
+                GROUP BY md2.mensaje_id
+            ";
+
+            $stmt = $this->pdo->prepare($sql);
+            $stmt->execute(array_merge([$conversacionId, $usuarioId], $pendientes));
+
+            $estados = $stmt->fetchAll();
+        }
 
         print json_encode([
             'ok' => true,
-            'mensajes' => $stmt->fetchAll()
+            'mensajes' => $mensajes,
+            'estados' => $estados
         ], JSON_UNESCAPED_UNICODE);
     }
 }
