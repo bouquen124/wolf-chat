@@ -25,6 +25,19 @@ class llamadas
         return $stmt->fetchColumn();
     }
 
+    private function puedeVerFotoPerfil($propietarioId, $visualizadorId)
+    {
+        if ((int)$propietarioId === (int)$visualizadorId) return true;
+        $stmt = $this->pdo->prepare("SELECT foto_perfil FROM privacidad_usuario WHERE usuario_id = ? LIMIT 1");
+        $stmt->execute([$propietarioId]);
+        $visibilidad = $stmt->fetchColumn() ?: 'contactos';
+        if ($visibilidad === 'nadie') return false;
+        if ($visibilidad === 'todos') return true;
+        $stmt = $this->pdo->prepare("SELECT 1 FROM contactos WHERE usuario_id = ? AND contacto_id = ? LIMIT 1");
+        $stmt->execute([$visualizadorId, $propietarioId]);
+        return (bool)$stmt->fetchColumn();
+    }
+
     public function iniciarLlamada($p, $g)
     {
         header('Content-Type: application/json; charset=utf-8');
@@ -243,6 +256,10 @@ class llamadas
         ]);
 
         $llamada = $stmt->fetch();
+
+        if ($llamada && !$this->puedeVerFotoPerfil($llamada['llamante_id'], $usuarioId)) {
+            $llamada['foto'] = null;
+        }
 
         print json_encode([
             'ok' => true,

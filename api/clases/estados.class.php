@@ -77,6 +77,45 @@ class estados
         return $stmt->fetchColumn();
     }
 
+    private function privacidadPermite($propietarioId, $visualizadorId, $campo)
+    {
+        if ((int)$propietarioId === (int)$visualizadorId) return true;
+
+        $campos = ['estados' => 'estados', 'foto_perfil' => 'foto_perfil', 'descripcion' => 'descripcion'];
+        if (!isset($campos[$campo])) return false;
+        $stmt = $this->pdo->prepare("SELECT {$campos[$campo]} FROM privacidad_usuario WHERE usuario_id = ? LIMIT 1");
+        $stmt->execute([$propietarioId]);
+        $visibilidad = $stmt->fetchColumn() ?: 'contactos';
+        if ($visibilidad === 'nadie') return false;
+
+        $stmt = $this->pdo->prepare(
+            "SELECT 1 FROM contactos WHERE usuario_id = ? AND contacto_id = ? LIMIT 1"
+        );
+        $stmt->execute([$propietarioId, $visualizadorId]);
+        $esContacto = (bool)$stmt->fetchColumn();
+        if ($visibilidad === 'contactos' && !$esContacto) return false;
+
+        if ($campo === 'estados') {
+            if ($visibilidad === 'contactos') {
+                $stmt = $this->pdo->prepare(
+                    "SELECT 1 FROM contactos WHERE usuario_id = ? AND contacto_id = ? LIMIT 1"
+                );
+                $stmt->execute([$visualizadorId, $propietarioId]);
+                if (!$stmt->fetchColumn()) return false;
+            }
+
+            $stmt = $this->pdo->prepare(
+                "SELECT 1 FROM bloqueos
+                 WHERE (usuario_id = ? AND usuario_bloqueado_id = ?)
+                    OR (usuario_id = ? AND usuario_bloqueado_id = ?) LIMIT 1"
+            );
+            $stmt->execute([$visualizadorId, $propietarioId, $propietarioId, $visualizadorId]);
+            if ($stmt->fetchColumn()) return false;
+        }
+
+        return true;
+    }
+
     private function urlRuta($ruta)
     {
         if (empty($ruta)) {
@@ -409,17 +448,19 @@ class estados
                 AND ev.usuario_id = ?
             LEFT JOIN archivos a
                 ON a.id = e.archivo_id
+            LEFT JOIN privacidad_usuario pu
+                ON pu.usuario_id = e.usuario_id
             WHERE
                 e.estado = 'activo'
                 AND e.fecha_expiracion > NOW()
                 AND e.usuario_id != ?
-                AND EXISTS
-                (
-                    SELECT 1
-                    FROM contactos c
-                    WHERE
-                        c.usuario_id = ?
-                        AND c.contacto_id = e.usuario_id
+                AND COALESCE(pu.estados, 'contactos') <> 'nadie'
+                AND (
+                    COALESCE(pu.estados, 'contactos') = 'todos'
+                    OR (
+                        EXISTS (SELECT 1 FROM contactos c WHERE c.usuario_id = ? AND c.contacto_id = e.usuario_id)
+                        AND EXISTS (SELECT 1 FROM contactos c2 WHERE c2.usuario_id = e.usuario_id AND c2.contacto_id = ?)
+                    )
                 )
                 AND NOT EXISTS
                 (
@@ -446,6 +487,7 @@ class estados
             $usuarioId,
             $usuarioId,
             $usuarioId,
+            $usuarioId,
             $usuarioId
         ]);
 
@@ -456,6 +498,9 @@ class estados
             $estado['usuario_id'] = (int)$estado['usuario_id'];
             $estado['archivo_id'] = $estado['archivo_id'] !== null ? (int)$estado['archivo_id'] : null;
             $estado['visto'] = (int)$estado['visto'];
+            if (!$this->privacidadPermite($estado['usuario_id'], $usuarioId, 'foto_perfil')) {
+                $estado['foto'] = null;
+            }
             $estado['foto'] = $this->urlRuta($estado['foto']);
             $estado['ruta'] = $this->urlRuta($estado['ruta']);
         }
@@ -527,46 +572,9 @@ class estados
             return;
         }
 
-        if ((int)$estado['usuario_id'] !== (int)$usuarioId) {
-            $sql = "
-                SELECT 1
-                FROM contactos c
-                WHERE
-                    c.usuario_id = ?
-                    AND c.contacto_id = ?
-                    AND NOT EXISTS
-                    (
-                        SELECT 1
-                        FROM bloqueos b1
-                        WHERE
-                            b1.usuario_id = ?
-                            AND b1.usuario_bloqueado_id = ?
-                    )
-                    AND NOT EXISTS
-                    (
-                        SELECT 1
-                        FROM bloqueos b2
-                        WHERE
-                            b2.usuario_id = ?
-                            AND b2.usuario_bloqueado_id = ?
-                    )
-                LIMIT 1
-            ";
-
-            $stmt = $this->pdo->prepare($sql);
-            $stmt->execute([
-                $usuarioId,
-                $estado['usuario_id'],
-                $usuarioId,
-                $estado['usuario_id'],
-                $estado['usuario_id'],
-                $usuarioId
-            ]);
-
-            if (!$stmt->fetchColumn()) {
-                print json_encode(['ok' => false, 'error' => 'No tienes acceso a este estado'], JSON_UNESCAPED_UNICODE);
-                return;
-            }
+        if (!$this->privacidadPermite($estado['usuario_id'], $usuarioId, 'estados')) {
+            print json_encode(['ok' => false, 'error' => 'No tienes acceso a este estado'], JSON_UNESCAPED_UNICODE);
+            return;
         }
 
         $estado['id'] = (int)$estado['id'];
@@ -576,6 +584,9 @@ class estados
             $estado['archivo_id'] = (int)$estado['archivo_id'];
         }
 
+        if (!$this->privacidadPermite($estado['usuario_id'], $usuarioId, 'foto_perfil')) {
+            $estado['foto'] = null;
+        }
         $estado['foto'] = $this->urlRuta($estado['foto']);
         $estado['ruta'] = $this->urlRuta($estado['ruta']);
 
@@ -674,23 +685,25 @@ class estados
                     AND ev.usuario_id = ?
                 LEFT JOIN archivos a
                     ON a.id = e.archivo_id
+                LEFT JOIN privacidad_usuario pu
+                    ON pu.usuario_id = e.usuario_id
                 WHERE
                     e.usuario_id = ?
                     AND e.estado = 'activo'
                     AND e.fecha_expiracion > NOW()
-                    AND EXISTS
-                    (
-                        SELECT 1
-                        FROM contactos c
-                        WHERE
-                            c.usuario_id = ?
-                            AND c.contacto_id = e.usuario_id
+                    AND COALESCE(pu.estados, 'contactos') <> 'nadie'
+                    AND (
+                        COALESCE(pu.estados, 'contactos') = 'todos'
+                        OR (
+                            EXISTS (SELECT 1 FROM contactos c WHERE c.usuario_id = ? AND c.contacto_id = e.usuario_id)
+                            AND EXISTS (SELECT 1 FROM contactos c2 WHERE c2.usuario_id = e.usuario_id AND c2.contacto_id = ?)
+                        )
                     )
                 ORDER BY e.fecha_creacion DESC
             ";
 
             $stmt = $this->pdo->prepare($sql);
-            $stmt->execute([$usuarioId, $usuarioIdParam, $usuarioId]);
+            $stmt->execute([$usuarioId, $usuarioIdParam, $usuarioId, $usuarioId]);
         }
 
         $resultado = $stmt->fetchAll();
@@ -701,6 +714,10 @@ class estados
             $estado['archivo_id'] = $estado['archivo_id'] !== null ? (int)$estado['archivo_id'] : null;
             $estado['visto'] = isset($estado['visto']) ? (int)$estado['visto'] : 0;
             $estado['es_propio'] = (int)$estado['es_propio'];
+            if (!$this->privacidadPermite($estado['usuario_id'], $usuarioId, 'foto_perfil')) {
+                $estado['foto'] = null;
+            }
+            $estado['foto'] = $this->urlRuta($estado['foto']);
             $estado['ruta'] = $this->urlRuta($estado['ruta']);
         }
 
@@ -746,6 +763,12 @@ class estados
 
         if (!$propietarioId) {
             print json_encode(['ok' => false, 'error' => 'Estado no encontrado o expirado'], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+
+        if (!$this->privacidadPermite($propietarioId, $usuarioId, 'estados')) {
+            http_response_code(403);
+            print json_encode(['ok' => false, 'error' => 'No tienes permiso para ver este estado'], JSON_UNESCAPED_UNICODE);
             return;
         }
 
@@ -843,6 +866,9 @@ class estados
         foreach ($resultado as &$vista) {
             $vista['id'] = (int)$vista['id'];
             $vista['usuario_id'] = (int)$vista['usuario_id'];
+            if (!$this->privacidadPermite($vista['usuario_id'], $usuarioId, 'foto_perfil')) {
+                $vista['foto'] = null;
+            }
             $vista['foto'] = $this->urlRuta($vista['foto']);
         }
 
@@ -902,6 +928,15 @@ class estados
         $stmt->execute([$usuarioId]);
 
         $resultado = $stmt->fetchAll();
+
+        foreach ($resultado as &$vista) {
+            $vista['usuario_id'] = (int)$vista['usuario_id'];
+            if (!$this->privacidadPermite($vista['usuario_id'], $usuarioId, 'foto_perfil')) {
+                $vista['foto'] = null;
+            }
+            $vista['foto'] = $this->urlRuta($vista['foto']);
+        }
+        unset($vista);
 
         print json_encode([
             'ok' => true,

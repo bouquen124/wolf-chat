@@ -26,6 +26,21 @@ class conversaciones
         return $stmt->fetchColumn();
     }
 
+    private function puedeVerFotoPerfil($propietarioId, $visualizadorId)
+    {
+        if ((int)$propietarioId === (int)$visualizadorId) return true;
+
+        $stmt = $this->pdo->prepare("SELECT foto_perfil FROM privacidad_usuario WHERE usuario_id = ? LIMIT 1");
+        $stmt->execute([$propietarioId]);
+        $visibilidad = $stmt->fetchColumn() ?: 'contactos';
+        if ($visibilidad === 'nadie') return false;
+        if ($visibilidad === 'todos') return true;
+
+        $stmt = $this->pdo->prepare("SELECT 1 FROM contactos WHERE usuario_id = ? AND contacto_id = ? LIMIT 1");
+        $stmt->execute([$visualizadorId, $propietarioId]);
+        return (bool)$stmt->fetchColumn();
+    }
+
     public function crearConversacion($p, $g)
     {
         header('Content-Type: application/json; charset=utf-8');
@@ -310,6 +325,10 @@ class conversaciones
             return;
         }
 
+        if (!$this->puedeVerFotoPerfil($contacto['id'], $usuarioId)) {
+            $contacto['foto'] = null;
+        }
+
         print json_encode([
             'ok' => true,
             'contacto' => $contacto
@@ -497,6 +516,9 @@ class conversaciones
 
         foreach ($resultado as &$chat) {
             $chat['no_leidos'] = (int)($chat['no_leidos'] ?? 0);
+            if (!$this->puedeVerFotoPerfil($chat['contacto_id'], $usuarioId)) {
+                $chat['foto'] = null;
+            }
         }
 
         print json_encode([
@@ -702,6 +724,9 @@ class conversaciones
 
         foreach ($integrantes as &$integrante) {
             $integrante['id'] = (int)$integrante['id'];
+            if (!$this->puedeVerFotoPerfil($integrante['id'], $usuarioId)) {
+                $integrante['foto'] = null;
+            }
         }
         unset($integrante);
 

@@ -55,6 +55,18 @@ switch ($task) {
         $reg->cerrarSesion($_POST, $_GET);
         break;
 
+    case "obtenerPrivacidad":
+        include_once("../clases/usuarios.class.php");
+        $reg = new usuarios();
+        $reg->obtenerPrivacidad($_POST, $_GET);
+        break;
+
+    case "guardarPrivacidad":
+        include_once("../clases/usuarios.class.php");
+        $reg = new usuarios();
+        $reg->guardarPrivacidad($_POST, $_GET);
+        break;
+
     case "obtenerPreferencias":
         include_once("../clases/usuarios.class.php");
         $reg = new usuarios();

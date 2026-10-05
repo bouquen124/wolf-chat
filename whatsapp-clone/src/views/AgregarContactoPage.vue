@@ -143,8 +143,15 @@ const buscarUsuario = async () => {
       return;
     }
 
+    const formularioUsuarios = new URLSearchParams();
+    formularioUsuarios.append("token", token);
     const respuesta = await fetch(
       "http://localhost/new%20app/api/controladores/usuarios_controlador.php?task=getUsuarios",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: formularioUsuarios.toString(),
+      },
     );
 
     const datos = await respuesta.json();

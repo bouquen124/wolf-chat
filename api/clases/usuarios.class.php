@@ -26,7 +26,32 @@ class usuarios
     function getUsuarios($p, $g)
     {
         try {
-            $stmt = $this->conn->query("SELECT id, telefono, nombre, apellido, foto FROM usuarios");
+            $usuarioId = $this->usuarioDeSesion($p['token'] ?? '');
+            if (!$usuarioId) {
+                http_response_code(401);
+                print json_encode(['ok' => false, 'error' => 'Sesión no válida'], JSON_UNESCAPED_UNICODE);
+                return;
+            }
+            $stmt = $this->conn->prepare("SELECT
+                u.id, u.telefono, u.nombre, u.apellido,
+                CASE WHEN u.id = :viewer_foto_self
+                    OR COALESCE(p.foto_perfil, 'contactos') = 'todos'
+                    OR (COALESCE(p.foto_perfil, 'contactos') = 'contactos' AND EXISTS (
+                        SELECT 1 FROM contactos c WHERE c.usuario_id = u.id AND c.contacto_id = :viewer_foto_contacto
+                    )) THEN u.foto ELSE NULL END AS foto,
+                CASE WHEN u.id = :viewer_info_self
+                    OR COALESCE(p.descripcion, 'contactos') = 'todos'
+                    OR (COALESCE(p.descripcion, 'contactos') = 'contactos' AND EXISTS (
+                        SELECT 1 FROM contactos c WHERE c.usuario_id = u.id AND c.contacto_id = :viewer_info_contacto
+                    )) THEN u.descripcion ELSE NULL END AS descripcion
+                FROM usuarios u
+                LEFT JOIN privacidad_usuario p ON p.usuario_id = u.id");
+            $stmt->execute([
+                ':viewer_foto_self' => $usuarioId,
+                ':viewer_foto_contacto' => $usuarioId,
+                ':viewer_info_self' => $usuarioId,
+                ':viewer_info_contacto' => $usuarioId,
+            ]);
             $usuarios = $stmt->fetchAll();
             print json_encode(['ok' => true, 'usuarios' => $usuarios], JSON_UNESCAPED_UNICODE);
         } catch (PDOException $e) {
@@ -38,8 +63,32 @@ class usuarios
     function getUsuario($p, $g)
     {
         try {
-            $stmt = $this->conn->prepare("SELECT id, telefono, nombre, apellido, foto FROM usuarios WHERE id = :id LIMIT 1");
-            $stmt->execute([':id' => $g['id'] ?? 0]);
+            $viewerId = $this->usuarioDeSesion($p['token'] ?? '');
+            if (!$viewerId) {
+                http_response_code(401);
+                print json_encode(['ok' => false, 'error' => 'Sesión no válida'], JSON_UNESCAPED_UNICODE);
+                return;
+            }
+            $stmt = $this->conn->prepare("SELECT u.id, u.telefono, u.nombre, u.apellido,
+                CASE WHEN u.id = :viewer_self
+                    OR COALESCE(p.foto_perfil, 'contactos') = 'todos'
+                    OR (COALESCE(p.foto_perfil, 'contactos') = 'contactos' AND EXISTS (
+                        SELECT 1 FROM contactos c WHERE c.usuario_id = u.id AND c.contacto_id = :viewer_contacto
+                    )) THEN u.foto ELSE NULL END AS foto,
+                CASE WHEN u.id = :viewer_info_self
+                    OR COALESCE(p.descripcion, 'contactos') = 'todos'
+                    OR (COALESCE(p.descripcion, 'contactos') = 'contactos' AND EXISTS (
+                        SELECT 1 FROM contactos c WHERE c.usuario_id = u.id AND c.contacto_id = :viewer_info_contacto
+                    )) THEN u.descripcion ELSE NULL END AS descripcion
+                FROM usuarios u LEFT JOIN privacidad_usuario p ON p.usuario_id = u.id
+                WHERE u.id = :id LIMIT 1");
+            $stmt->execute([
+                ':viewer_self' => $viewerId,
+                ':viewer_contacto' => $viewerId,
+                ':viewer_info_self' => $viewerId,
+                ':viewer_info_contacto' => $viewerId,
+                ':id' => $g['id'] ?? 0,
+            ]);
             $usuario = $stmt->fetch();
             print json_encode(['ok' => true, 'usuario' => $usuario], JSON_UNESCAPED_UNICODE);
         } catch (PDOException $e) {
@@ -100,6 +149,81 @@ class usuarios
         );
         $stmt->execute([':token' => $token]);
         return $stmt->fetchColumn();
+    }
+
+    private function privacidadDeUsuario($usuarioId)
+    {
+        $stmt = $this->conn->prepare(
+            "SELECT foto_perfil, descripcion, estados FROM privacidad_usuario WHERE usuario_id = :id LIMIT 1"
+        );
+        $stmt->execute([':id' => $usuarioId]);
+        $privacidad = $stmt->fetch();
+        return $privacidad ?: [
+            'foto_perfil' => 'contactos',
+            'descripcion' => 'contactos',
+            'estados' => 'contactos',
+        ];
+    }
+
+    function obtenerPrivacidad($p, $g)
+    {
+        header('Content-Type: application/json; charset=utf-8');
+        $usuarioId = $this->usuarioDeSesion($p['token'] ?? '');
+        if (!$usuarioId) {
+            http_response_code(401);
+            print json_encode(['ok' => false, 'error' => 'Sesión no válida'], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+
+        try {
+            print json_encode(['ok' => true, 'privacidad' => $this->privacidadDeUsuario($usuarioId)], JSON_UNESCAPED_UNICODE);
+        } catch (PDOException $e) {
+            error_log('obtenerPrivacidad: ' . $e->getMessage());
+            http_response_code(500);
+            print json_encode(['ok' => false, 'error' => 'No se pudo cargar la privacidad'], JSON_UNESCAPED_UNICODE);
+        }
+    }
+
+    function guardarPrivacidad($p, $g)
+    {
+        header('Content-Type: application/json; charset=utf-8');
+        $usuarioId = $this->usuarioDeSesion($p['token'] ?? '');
+        if (!$usuarioId) {
+            http_response_code(401);
+            print json_encode(['ok' => false, 'error' => 'Sesión no válida'], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+
+        $valoresPermitidos = ['todos', 'contactos', 'nadie'];
+        $foto = $p['foto_perfil'] ?? '';
+        $descripcion = $p['descripcion'] ?? '';
+        $estados = $p['estados'] ?? '';
+        if (!in_array($foto, $valoresPermitidos, true) ||
+            !in_array($descripcion, $valoresPermitidos, true) ||
+            !in_array($estados, $valoresPermitidos, true)) {
+            http_response_code(400);
+            print json_encode(['ok' => false, 'error' => 'Selecciona una opción válida para cada permiso'], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+
+        try {
+            $stmt = $this->conn->prepare(
+                "INSERT INTO privacidad_usuario (usuario_id, foto_perfil, descripcion, estados)
+                 VALUES (:id, :foto, :descripcion, :estados)
+                 ON DUPLICATE KEY UPDATE foto_perfil = VALUES(foto_perfil), descripcion = VALUES(descripcion), estados = VALUES(estados)"
+            );
+            $stmt->execute([
+                ':id' => $usuarioId,
+                ':foto' => $foto,
+                ':descripcion' => $descripcion,
+                ':estados' => $estados,
+            ]);
+            print json_encode(['ok' => true, 'privacidad' => $this->privacidadDeUsuario($usuarioId)], JSON_UNESCAPED_UNICODE);
+        } catch (PDOException $e) {
+            error_log('guardarPrivacidad: ' . $e->getMessage());
+            http_response_code(500);
+            print json_encode(['ok' => false, 'error' => 'No se pudieron guardar los ajustes de privacidad'], JSON_UNESCAPED_UNICODE);
+        }
     }
 
     function actualizarPerfil($p, $g)

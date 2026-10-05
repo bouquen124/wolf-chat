@@ -79,14 +79,14 @@
               />
             </ion-item>
 
-            <ion-item button lines="none" class="opcion">
+            <ion-item button lines="none" class="opcion" @click="editarPrivacidad">
               <div slot="start" class="icono-opcion">
                 <ion-icon :icon="lockClosedOutline" />
               </div>
 
               <ion-label>
                 <h2>Privacidad</h2>
-                <p>Controla quién puede contactarte</p>
+                <p>Elige quién ve tu foto, descripción e historias</p>
               </ion-label>
 
               <ion-icon
@@ -242,6 +242,12 @@ interface UsuarioPerfil {
   descripcion?: string | null;
 }
 
+interface PrivacidadPerfil {
+  foto_perfil: "todos" | "contactos" | "nadie";
+  descripcion: "todos" | "contactos" | "nadie";
+  estados: "todos" | "contactos" | "nadie";
+}
+
 const router = useRouter();
 const avatarPredeterminado = "https://i.pravatar.cc/300?img=12";
 const entradaFoto = ref<HTMLInputElement | null>(null);
@@ -254,6 +260,11 @@ const usuario = ref({
   telefono: "",
   descripcion: "",
   avatar: avatarPredeterminado,
+});
+const privacidad = ref<PrivacidadPerfil>({
+  foto_perfil: "contactos",
+  descripcion: "contactos",
+  estados: "contactos",
 });
 
 const nombreCompleto = computed(
@@ -295,7 +306,104 @@ const cargarUsuario = () => {
   }
 };
 
-onIonViewWillEnter(cargarUsuario);
+const cargarPrivacidad = async () => {
+  const token = localStorage.getItem("token") || "";
+  if (!token) return;
+
+  try {
+    const datos = new URLSearchParams();
+    datos.append("token", token);
+    const respuesta = await fetch(
+      "http://localhost/new%20app/api/controladores/usuarios_controlador.php?task=obtenerPrivacidad",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: datos.toString(),
+        cache: "no-store",
+      },
+    );
+    const resultado = await respuesta.json();
+    if (resultado.ok && resultado.privacidad) privacidad.value = resultado.privacidad;
+  } catch (error) {
+    console.error("No se pudo cargar la privacidad:", error);
+  }
+};
+
+onIonViewWillEnter(() => {
+  cargarUsuario();
+  void cargarPrivacidad();
+});
+
+const editarPrivacidad = async () => {
+  const seccion = await actionSheetController.create({
+    mode: "ios",
+    header: "Ajustes de privacidad",
+    buttons: [
+      { text: "Foto de perfil", handler: () => void seleccionarVisibilidad("foto_perfil", "tu foto de perfil") },
+      { text: "Descripción", handler: () => void seleccionarVisibilidad("descripcion", "tu descripción") },
+      { text: "Historias", handler: () => void seleccionarVisibilidad("estados", "tus historias") },
+      { text: "Cancelar", role: "cancel" },
+    ],
+  });
+  await seccion.present();
+};
+
+const seleccionarVisibilidad = async (
+  campo: keyof PrivacidadPerfil,
+  nombre: string,
+) => {
+  const opciones: Array<{ valor: PrivacidadPerfil[keyof PrivacidadPerfil]; texto: string }> = [
+    { valor: "todos", texto: "Todos" },
+    { valor: "contactos", texto: "Mis contactos" },
+    { valor: "nadie", texto: "Nadie" },
+  ];
+  const selector = await actionSheetController.create({
+    mode: "ios",
+    header: `Quién puede ver ${nombre}`,
+    buttons: [
+      ...opciones.map((opcion) => ({
+        text: `${opcion.texto}${privacidad.value[campo] === opcion.valor ? " ✓" : ""}`,
+        handler: async () => {
+          const token = localStorage.getItem("token") || "";
+          if (!token) {
+            await mostrarAlerta("Sesión no válida", "Inicia sesión para guardar la privacidad.");
+            return;
+          }
+          const nuevaPrivacidad = { ...privacidad.value, [campo]: opcion.valor };
+          try {
+            const datos = new URLSearchParams();
+            datos.append("token", token);
+            datos.append("foto_perfil", nuevaPrivacidad.foto_perfil);
+            datos.append("descripcion", nuevaPrivacidad.descripcion);
+            datos.append("estados", nuevaPrivacidad.estados);
+            const respuesta = await fetch(
+              "http://localhost/new%20app/api/controladores/usuarios_controlador.php?task=guardarPrivacidad",
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                body: datos.toString(),
+              },
+            );
+            const resultado = await respuesta.json();
+            if (!resultado.ok || !resultado.privacidad) {
+              throw new Error(resultado.error || "No se pudo guardar la privacidad.");
+            }
+            privacidad.value = resultado.privacidad;
+            await mostrarAlerta("Privacidad actualizada", `Se guardó quién puede ver ${nombre}.`);
+          } catch (error) {
+            console.error("No se pudo guardar la privacidad:", error);
+            await mostrarAlerta(
+              "No se pudo guardar",
+              error instanceof Error ? error.message : "Inténtalo de nuevo.",
+            );
+          }
+        },
+      })),
+      { text: "Cancelar", role: "cancel" },
+    ],
+  });
+  await selector.present();
+};
 
 const editarPerfil = async () => {
   const token = localStorage.getItem("token") || "";
