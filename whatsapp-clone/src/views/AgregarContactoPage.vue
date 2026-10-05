@@ -38,14 +38,14 @@
         </div>
 
         <!-- Tarjeta de Usuario Encontrado -->
-        <div
-          v-if="usuario"
-          class="usuario-card"
-        >
+        <div v-if="usuario" class="usuario-card">
           <div class="avatar-container">
             <div class="avatar-ring">
               <ion-avatar class="custom-avatar">
-                <img :src="usuario.foto || 'https://i.pravatar.cc/150?img=12'" alt="Avatar" />
+                <img
+                  :src="usuario.foto || 'https://i.pravatar.cc/150?img=12'"
+                  alt="Avatar"
+                />
               </ion-avatar>
             </div>
           </div>
@@ -64,12 +64,7 @@
             Agregar
           </ion-button>
 
-          <span
-            v-else
-            class="badge-agregado"
-          >
-            Ya agregado
-          </span>
+          <span v-else class="badge-agregado"> Ya agregado </span>
         </div>
 
         <!-- Mensaje de estado / error -->
@@ -84,8 +79,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
-import { useRouter } from 'vue-router';
+import { ref } from "vue";
+import { useRouter } from "vue-router";
 
 import {
   IonPage,
@@ -97,8 +92,10 @@ import {
   IonContent,
   IonSearchbar,
   IonButton,
-  IonAvatar
-} from '@ionic/vue';
+  IonAvatar,
+  alertController,
+  toastController,
+} from "@ionic/vue";
 
 interface Usuario {
   id: number;
@@ -114,33 +111,40 @@ interface Contacto {
 
 const router = useRouter();
 
-const telefono = ref('');
+const telefono = ref("");
 const usuario = ref<Usuario | null>(null);
-const mensaje = ref('');
+const mensaje = ref("");
 const yaAgregado = ref(false);
 
 const buscarUsuario = async () => {
   const numero = telefono.value.trim();
 
   usuario.value = null;
-  mensaje.value = '';
+  mensaje.value = "";
   yaAgregado.value = false;
 
   if (!numero) {
-    mensaje.value = 'Escribe un número de teléfono';
+    mensaje.value = "Escribe un número de teléfono";
     return;
   }
 
   try {
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem("token");
 
     if (!token) {
-      alert('Sesión no válida');
+      const aviso = await toastController.create({
+        message: "Sesión no válida",
+        duration: 1800,
+        position: "bottom",
+        mode: "ios",
+        color: "danger",
+      });
+      await aviso.present();
       return;
     }
 
     const respuesta = await fetch(
-      'http://localhost/new%20app/api/controladores/usuarios_controlador.php?task=getUsuarios'
+      "http://localhost/new%20app/api/controladores/usuarios_controlador.php?task=getUsuarios",
     );
 
     const datos = await respuesta.json();
@@ -151,11 +155,11 @@ const buscarUsuario = async () => {
     }
 
     const encontrado = datos.usuarios.find(
-      (item: Usuario) => item.telefono === numero
+      (item: Usuario) => item.telefono === numero,
     );
 
     if (!encontrado) {
-      mensaje.value = 'No se encontró ningún usuario con ese teléfono';
+      mensaje.value = "No se encontró ningún usuario con ese teléfono";
       return;
     }
 
@@ -163,17 +167,17 @@ const buscarUsuario = async () => {
 
     const datosContactos = new URLSearchParams();
 
-    datosContactos.append('token', token);
+    datosContactos.append("token", token);
 
     const respuestaContactos = await fetch(
-      'http://localhost/new%20app/api/controladores/contactos_controlador.php?task=obtenerContactos',
+      "http://localhost/new%20app/api/controladores/contactos_controlador.php?task=obtenerContactos",
       {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/x-www-form-urlencoded'
+          "Content-Type": "application/x-www-form-urlencoded",
         },
-        body: datosContactos.toString()
-      }
+        body: datosContactos.toString(),
+      },
     );
 
     const resultadoContactos = await respuestaContactos.json();
@@ -185,12 +189,11 @@ const buscarUsuario = async () => {
 
     yaAgregado.value = resultadoContactos.contactos.some(
       (contacto: Contacto) =>
-        Number(contacto.contacto_id) === Number(encontrado.id)
+        Number(contacto.contacto_id) === Number(encontrado.id),
     );
-  }
-  catch (error) {
-    console.error('Error al buscar usuario:', error);
-    mensaje.value = 'Error al buscar el usuario';
+  } catch (error) {
+    console.error("Error al buscar usuario:", error);
+    mensaje.value = "Error al buscar el usuario";
   }
 };
 
@@ -200,45 +203,72 @@ const agregarContacto = async () => {
   }
 
   try {
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem("token");
 
     if (!token) {
-      alert('Sesión no válida');
+      const aviso = await toastController.create({
+        message: "Sesión no válida",
+        duration: 1800,
+        position: "bottom",
+        mode: "ios",
+        color: "danger",
+      });
+      await aviso.present();
       return;
     }
 
     const datos = new URLSearchParams();
 
-    datos.append('token', token);
-    datos.append('contacto_id', usuario.value.id.toString());
+    datos.append("token", token);
+    datos.append("contacto_id", usuario.value.id.toString());
 
     const respuesta = await fetch(
-      'http://localhost/new%20app/api/controladores/contactos_controlador.php?task=agregarContacto',
+      "http://localhost/new%20app/api/controladores/contactos_controlador.php?task=agregarContacto",
       {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/x-www-form-urlencoded'
+          "Content-Type": "application/x-www-form-urlencoded",
         },
-        body: datos.toString()
-      }
+        body: datos.toString(),
+      },
     );
 
     const resultado = await respuesta.json();
 
     if (!resultado.ok) {
-      alert(resultado.error);
+      const aviso = await toastController.create({
+        message: resultado.error || "No se pudo agregar el contacto.",
+        duration: 2200,
+        position: "bottom",
+        mode: "ios",
+        color: "danger",
+      });
+      await aviso.present();
       return;
     }
 
     yaAgregado.value = true;
 
-    alert('Contacto agregado correctamente');
+    const alerta = await alertController.create({
+      mode: "ios",
+      header: "Contacto agregado",
+      message: "Contacto agregado correctamente",
+      buttons: ["Aceptar"],
+    });
+    await alerta.present();
+    await alerta.onDidDismiss();
 
-    router.push('/chats');
-  }
-  catch (error) {
-    console.error('Error al agregar contacto:', error);
-    alert('Error al agregar el contacto');
+    router.push("/chats");
+  } catch (error) {
+    console.error("Error al agregar contacto:", error);
+    const aviso = await toastController.create({
+      message: "Error al agregar el contacto",
+      duration: 2200,
+      position: "bottom",
+      mode: "ios",
+      color: "danger",
+    });
+    await aviso.present();
   }
 };
 </script>
@@ -248,7 +278,8 @@ const agregarContacto = async () => {
 .agregar-contacto-page {
   --background: #090d16;
   background-color: #090d16;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
 
 .agregar-contacto-content {
@@ -268,7 +299,7 @@ const agregarContacto = async () => {
 }
 
 .custom-back-btn {
-  --color: #10b981;
+  --color: var(--app-accent, #10b981);
 }
 
 .header-title {
@@ -291,7 +322,7 @@ const agregarContacto = async () => {
 .glow-emerald {
   width: 280px;
   height: 280px;
-  background: #10b981;
+  background: var(--app-accent, #10b981);
   top: -40px;
   right: -50px;
 }
@@ -299,7 +330,7 @@ const agregarContacto = async () => {
 .glow-cyan {
   width: 250px;
   height: 250px;
-  background: #06b6d4;
+  background: var(--app-accent-secondary, #06b6d4);
   bottom: 100px;
   left: -70px;
 }
@@ -323,7 +354,7 @@ const agregarContacto = async () => {
   --background: rgba(255, 255, 255, 0.05);
   --color: #ffffff;
   --placeholder-color: #64748b;
-  --icon-color: #10b981;
+  --icon-color: var(--app-accent, #10b981);
   --clear-button-color: #94a3b8;
   --border-radius: 18px;
   --box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
@@ -334,7 +365,7 @@ const agregarContacto = async () => {
 }
 
 .btn-primary-glow {
-  --background: linear-gradient(135deg, #10b981 0%, #06b6d4 100%);
+  --background: linear-gradient(135deg, var(--app-accent, #10b981) 0%, var(--app-accent-secondary, #06b6d4) 100%);
   --color: #ffffff;
   --border-radius: 16px;
   --box-shadow: 0 6px 20px rgba(16, 185, 129, 0.35);
@@ -368,7 +399,7 @@ const agregarContacto = async () => {
 .avatar-ring {
   padding: 2px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #10b981 0%, #06b6d4 100%);
+  background: linear-gradient(135deg, var(--app-accent, #10b981) 0%, var(--app-accent-secondary, #06b6d4) 100%);
   box-shadow: 0 0 12px rgba(16, 185, 129, 0.3);
 }
 
@@ -407,7 +438,7 @@ const agregarContacto = async () => {
 
 /* BOTÓN DE AGREGAR */
 .btn-add-glow {
-  --background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  --background: linear-gradient(135deg, var(--app-accent, #10b981) 0%, #059669 100%);
   --color: #ffffff;
   --border-radius: 12px;
   --box-shadow: 0 4px 14px rgba(16, 185, 129, 0.4);
@@ -422,7 +453,7 @@ const agregarContacto = async () => {
 .badge-agregado {
   font-size: 12px;
   font-weight: 700;
-  color: #06b6d4;
+  color: var(--app-accent-secondary, #06b6d4);
   background: rgba(6, 182, 212, 0.12);
   border: 1px solid rgba(6, 182, 212, 0.3);
   padding: 6px 12px;

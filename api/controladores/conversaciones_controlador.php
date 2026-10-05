@@ -52,6 +52,15 @@ switch ($_GET['task']) {
         $reg = new conversaciones($pdo);
         $reg->obtenerGrupos($_POST, $_GET);
         break;
+    case "obtenerIntegrantesGrupo":
+        $reg = new conversaciones($pdo);
+        $reg->obtenerIntegrantesGrupo($_POST, $_GET);
+        break;
+
+          case "salirGrupo":
+        $reg = new conversaciones($pdo);
+        $reg->salirGrupo($_POST, $_GET);
+        break;
 
     default:
 

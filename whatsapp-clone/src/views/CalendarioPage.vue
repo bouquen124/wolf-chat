@@ -88,6 +88,16 @@
                 <h2>{{ evento.titulo }}</h2>
                 <p>{{ evento.hora }}</p>
               </ion-label>
+
+              <ion-button
+                slot="end"
+                fill="clear"
+                class="boton-eliminar-evento"
+                aria-label="Eliminar evento"
+                @click="eliminarEvento(evento)"
+              >
+                <ion-icon :icon="trashOutline" />
+              </ion-button>
             </ion-item>
           </ion-list>
 
@@ -117,12 +127,15 @@ import {
   IonList,
   IonItem,
   IonLabel,
+  alertController,
+  onIonViewWillEnter,
 } from "@ionic/vue";
 import {
   addOutline,
   chevronBackOutline,
   chevronForwardOutline,
   calendarOutline,
+  trashOutline,
 } from "ionicons/icons";
 interface Evento {
   id: number;
@@ -141,31 +154,70 @@ interface DiaCalendario {
 const fechaActual = new Date();
 const mes = ref(fechaActual.getMonth());
 const anio = ref(fechaActual.getFullYear());
-const fechaSeleccionada = ref(fechaActual.toISOString().split("T")[0]);
+const fechaSeleccionada = ref(
+  `${fechaActual.getFullYear()}-${String(fechaActual.getMonth() + 1).padStart(2, "0")}-${String(fechaActual.getDate()).padStart(2, "0")}`,
+);
 const diasSemana = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
-const eventos = ref<Evento[]>([
-  {
-    id: 1,
-    fecha: fechaActual.toISOString().split("T")[0],
-    titulo: "Reunión de trabajo",
-    hora: "10:00",
-    color: "#6366f1",
-  },
-  {
-    id: 2,
-    fecha: fechaActual.toISOString().split("T")[0],
-    titulo: "Comida con amigos",
-    hora: "14:30",
-    color: "#25d366",
-  },
-  {
-    id: 3,
-    fecha: fechaActual.toISOString().split("T")[0],
-    titulo: "Entrenamiento",
-    hora: "19:00",
-    color: "#f59e0b",
-  },
-]);
+const eventos = ref<Evento[]>([]);
+const token = localStorage.getItem("token") || "";
+
+const mostrarAlerta = async (header: string, message: string) => {
+  const alerta = await alertController.create({
+    mode: "ios",
+    header,
+    message,
+    buttons: ["Aceptar"],
+  });
+  await alerta.present();
+};
+
+const cargarEventos = async () => {
+  if (!token) {
+    await mostrarAlerta(
+      "Sesión no válida",
+      "Inicia sesión para ver tu calendario.",
+    );
+    return;
+  }
+
+  try {
+    const datos = new URLSearchParams();
+    datos.append("token", token);
+    datos.append("anio", String(anio.value));
+    datos.append("mes", String(mes.value + 1));
+
+    const respuesta = await fetch(
+      "http://localhost/new%20app/api/controladores/calendario_controlador.php?task=obtenerEventos",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: datos.toString(),
+        cache: "no-store",
+      },
+    );
+    const resultado = await respuesta.json();
+    if (!resultado.ok)
+      throw new Error(resultado.error || "No se pudieron cargar los eventos.");
+
+    eventos.value = (
+      Array.isArray(resultado.eventos) ? resultado.eventos : []
+    ).map((evento: any) => ({
+      id: Number(evento.id),
+      fecha: String(evento.fecha),
+      titulo: String(evento.titulo),
+      hora: String(evento.hora || "").slice(0, 5),
+      color: String(evento.color || "#6366f1"),
+    }));
+  } catch (error) {
+    console.error("Error al cargar eventos del calendario:", error);
+    await mostrarAlerta(
+      "No se pudo cargar el calendario",
+      error instanceof Error ? error.message : "Inténtalo de nuevo.",
+    );
+  }
+};
+
+onIonViewWillEnter(cargarEventos);
 const nombreMes = computed(() => {
   const fecha = new Date(anio.value, mes.value, 1);
   return fecha
@@ -236,9 +288,10 @@ const formatearFecha = (fecha: Date) => {
 const seleccionarDia = (dia: DiaCalendario) => {
   fechaSeleccionada.value = dia.fecha;
   if (!dia.esMesActual) {
-    const fecha = new Date(`${dia.fecha}T00:00:00`);
-    mes.value = fecha.getMonth();
-    anio.value = fecha.getFullYear();
+    const [anioDia, mesDia] = dia.fecha.split("-").map(Number);
+    mes.value = mesDia - 1;
+    anio.value = anioDia;
+    void cargarEventos();
   }
 };
 const mesAnterior = () => {
@@ -248,6 +301,7 @@ const mesAnterior = () => {
   } else {
     mes.value--;
   }
+  void cargarEventos();
 };
 const mesSiguiente = () => {
   if (mes.value === 11) {
@@ -256,19 +310,128 @@ const mesSiguiente = () => {
   } else {
     mes.value++;
   }
+  void cargarEventos();
 };
 const tieneEventos = (fecha: string) => {
   return eventos.value.some((evento) => evento.fecha === fecha);
 };
-const agregarEvento = () => {
-  const nuevoEvento: Evento = {
-    id: Date.now(),
-    fecha: fechaSeleccionada.value,
-    titulo: "Nuevo evento",
-    hora: "12:00",
-    color: "#6366f1",
-  };
-  eventos.value.push(nuevoEvento);
+const agregarEvento = async () => {
+  let tituloCapturado = "";
+  let horaCapturada = "";
+  const formulario = await alertController.create({
+    mode: "ios",
+    header: "Nuevo evento",
+    inputs: [
+      {
+        name: "titulo",
+        type: "text",
+        placeholder: "Título del evento",
+        attributes: { maxlength: 120 },
+      },
+      { name: "hora", type: "time", value: "12:00" },
+    ],
+    buttons: [
+      { text: "Cancelar", role: "cancel" },
+      {
+        text: "Guardar",
+        role: "confirm",
+        handler: (valores: any) => {
+          tituloCapturado = String(valores?.titulo || "").trim();
+          horaCapturada = String(valores?.hora || "");
+          return true;
+        },
+      },
+    ],
+  });
+  await formulario.present();
+  const { role } = await formulario.onDidDismiss();
+  if (role !== "confirm") return;
+
+  if (!tituloCapturado || !horaCapturada) {
+    await mostrarAlerta(
+      "Faltan datos",
+      "Escribe el título y la hora del evento.",
+    );
+    return;
+  }
+
+  try {
+    const datos = new URLSearchParams();
+    datos.append("token", token);
+    datos.append("fecha", fechaSeleccionada.value);
+    datos.append("titulo", tituloCapturado);
+    datos.append("hora", horaCapturada);
+    datos.append("color", "#6366f1");
+
+    const respuesta = await fetch(
+      "http://localhost/new%20app/api/controladores/calendario_controlador.php?task=crearEvento",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: datos.toString(),
+      },
+    );
+    const resultado = await respuesta.json();
+    if (!resultado.ok)
+      throw new Error(resultado.error || "No se pudo guardar el evento.");
+
+    await cargarEventos();
+    await mostrarAlerta(
+      "Evento agregado",
+      "El evento se guardó en tu calendario.",
+    );
+  } catch (error) {
+    console.error("Error al guardar evento:", error);
+    await mostrarAlerta(
+      "No se pudo guardar",
+      error instanceof Error ? error.message : "Inténtalo de nuevo.",
+    );
+  }
+};
+
+const eliminarEvento = async (evento: Evento) => {
+  const confirmacion = await alertController.create({
+    mode: "ios",
+    header: "Eliminar evento",
+    message: `¿Quieres eliminar “${evento.titulo}”?`,
+    buttons: [
+      { text: "Cancelar", role: "cancel" },
+      { text: "Eliminar", role: "destructive" },
+    ],
+  });
+  await confirmacion.present();
+  const { role } = await confirmacion.onDidDismiss();
+  if (role !== "destructive") return;
+
+  try {
+    const datos = new URLSearchParams();
+    datos.append("token", token);
+    datos.append("evento_id", String(evento.id));
+
+    const respuesta = await fetch(
+      "http://localhost/new%20app/api/controladores/calendario_controlador.php?task=eliminarEvento",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: datos.toString(),
+      },
+    );
+    const resultado = await respuesta.json();
+    if (!resultado.ok)
+      throw new Error(resultado.error || "No se pudo eliminar el evento.");
+
+    await cargarEventos();
+    await mostrarAlerta(
+      "Evento eliminado",
+      "El evento se eliminó del calendario.",
+    );
+  } catch (error) {
+    console.error("Error al eliminar evento:", error);
+    await mostrarAlerta(
+      "No se pudo eliminar",
+      error instanceof Error ? error.message : "Inténtalo de nuevo.",
+    );
+  }
 };
 </script>
 <style scoped>
@@ -326,12 +489,12 @@ ion-content {
 .glow-emerald {
   top: 80px;
   left: -140px;
-  background: #10b981;
+  background: var(--app-accent, #10b981);
 }
 .glow-cyan {
   top: 390px;
   right: -150px;
-  background: #06b6d4;
+  background: var(--app-accent-secondary, #06b6d4);
 }
 .calendario-card {
   padding: 18px 12px 16px;
@@ -376,7 +539,7 @@ ion-content {
   opacity: 0.45;
 }
 .dia.hoy {
-  background: linear-gradient(135deg, #10b981, #06b6d4);
+  background: linear-gradient(135deg, var(--app-accent, #10b981), var(--app-accent-secondary, #06b6d4));
   color: #ffffff;
   font-weight: 700;
   box-shadow: 0 0 18px rgba(16, 185, 129, 0.25);
@@ -395,7 +558,7 @@ ion-content {
   width: 5px;
   height: 5px;
   border-radius: 50%;
-  background: #10b981;
+  background: var(--app-accent, #10b981);
   box-shadow: 0 0 8px rgba(16, 185, 129, 0.7);
 }
 .dia.hoy .indicador-evento {
@@ -415,7 +578,7 @@ ion-content {
 .eventos-label {
   display: block;
   margin-bottom: 4px;
-  color: #10b981;
+  color: var(--app-accent, #10b981);
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 1.2px;
@@ -427,7 +590,7 @@ ion-content {
   font-weight: 650;
 }
 .boton-evento {
-  --background: linear-gradient(135deg, #10b981, #06b6d4);
+  --background: linear-gradient(135deg, var(--app-accent, #10b981), var(--app-accent-secondary, #06b6d4));
   --color: #ffffff;
   --border-radius: 18px;
   --box-shadow: 0 6px 18px rgba(16, 185, 129, 0.2);
@@ -472,6 +635,13 @@ ion-content {
   color: #8993a5;
   font-size: 13px;
 }
+.boton-eliminar-evento {
+  --color: #f87171;
+  margin-inline-end: -6px;
+}
+.boton-eliminar-evento ion-icon {
+  font-size: 19px;
+}
 .sin-eventos {
   display: flex;
   flex-direction: column;
@@ -494,7 +664,7 @@ ion-content {
   border-radius: 50%;
   background: rgba(16, 185, 129, 0.1);
   border: 1px solid rgba(16, 185, 129, 0.18);
-  color: #10b981;
+  color: var(--app-accent, #10b981);
 }
 .sin-eventos ion-icon {
   font-size: 28px;

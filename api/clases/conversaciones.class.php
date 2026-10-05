@@ -282,12 +282,20 @@ class conversaciones
             WHERE cu.conversacion_id = ?
             AND cu.usuario_id <> ?
             AND cu.estado = 'activo'
+            AND EXISTS (
+                SELECT 1
+                FROM conversacion_usuarios cu_mio
+                WHERE cu_mio.conversacion_id = cu.conversacion_id
+                AND cu_mio.usuario_id = ?
+                AND cu_mio.estado = 'activo'
+            )
             LIMIT 1
         ";
 
         $stmt = $this->pdo->prepare($sql);
         $stmt->execute([
             $conversacionId,
+            $usuarioId,
             $usuarioId
         ]);
 
@@ -630,6 +638,202 @@ class conversaciones
         ], JSON_UNESCAPED_UNICODE);
     }
 
+
+    public function obtenerIntegrantesGrupo($p, $g)
+    {
+        header('Content-Type: application/json; charset=utf-8');
+
+        $token = $p['token'] ?? '';
+        $conversacionId = isset($p['conversacion_id']) ? (int)$p['conversacion_id'] : 0;
+
+        if (!$token || !$conversacionId) {
+            print json_encode(['ok' => false, 'error' => 'Datos incompletos'], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+
+        $usuarioId = $this->validarSesion($token);
+        if (!$usuarioId) {
+            print json_encode(['ok' => false, 'error' => 'Sesión no válida'], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+
+        // Autoriza únicamente a integrantes activos del grupo solicitado.
+        $sql = "
+            SELECT c.id
+            FROM conversaciones c
+            INNER JOIN conversacion_usuarios cu
+                ON cu.conversacion_id = c.id
+            WHERE c.id = ?
+              AND c.tipo = 'grupo'
+              AND c.estado = 'activa'
+              AND cu.usuario_id = ?
+              AND cu.estado = 'activo'
+            LIMIT 1
+        ";
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute([$conversacionId, $usuarioId]);
+
+        if (!$stmt->fetchColumn()) {
+            print json_encode(['ok' => false, 'error' => 'No perteneces a este grupo'], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+
+        $sql = "
+            SELECT
+                u.id,
+                u.nombre,
+                u.apellido,
+                u.foto,
+                cu.rol
+            FROM conversacion_usuarios cu
+            INNER JOIN usuarios u
+                ON u.id = cu.usuario_id
+            WHERE cu.conversacion_id = ?
+              AND cu.estado = 'activo'
+              AND u.estado = 'activo'
+            ORDER BY
+                CASE WHEN cu.rol = 'administrador' THEN 0 ELSE 1 END,
+                u.nombre,
+                u.apellido
+        ";
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute([$conversacionId]);
+        $integrantes = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        foreach ($integrantes as &$integrante) {
+            $integrante['id'] = (int)$integrante['id'];
+        }
+        unset($integrante);
+
+        print json_encode([
+            'ok' => true,
+            'integrantes' => $integrantes
+        ], JSON_UNESCAPED_UNICODE);
+    }
+
+    public function salirGrupo($p, $g)
+    {
+        header('Content-Type: application/json; charset=utf-8');
+
+        $token = $p['token'] ?? '';
+        $conversacionId = isset($p['conversacion_id']) ? (int)$p['conversacion_id'] : 0;
+        if (!$token || !$conversacionId) {
+            print json_encode(['ok' => false, 'error' => 'Datos incompletos'], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+
+        $usuarioId = $this->validarSesion($token);
+        if (!$usuarioId) {
+            print json_encode(['ok' => false, 'error' => 'Sesión no válida'], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+
+        try {
+            $this->pdo->beginTransaction();
+
+            $sql = "
+                SELECT cu.rol, u.nombre, u.apellido
+                FROM conversaciones c
+                INNER JOIN conversacion_usuarios cu
+                    ON cu.conversacion_id = c.id
+                INNER JOIN usuarios u
+                    ON u.id = cu.usuario_id
+                WHERE c.id = ?
+                  AND c.tipo = 'grupo'
+                  AND c.estado = 'activa'
+                  AND cu.usuario_id = ?
+                  AND cu.estado = 'activo'
+                LIMIT 1
+                FOR UPDATE
+            ";
+            $stmt = $this->pdo->prepare($sql);
+            $stmt->execute([$conversacionId, $usuarioId]);
+            $miembro = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if (!$miembro) {
+                $this->pdo->rollBack();
+                print json_encode(['ok' => false, 'error' => 'No perteneces a este grupo'], JSON_UNESCAPED_UNICODE);
+                return;
+            }
+
+            $administradorSiguiente = null;
+            if ($miembro['rol'] === 'administrador') {
+                $sql = "
+                    SELECT cu.usuario_id
+                    FROM conversacion_usuarios cu
+                    WHERE cu.conversacion_id = ?
+                      AND cu.usuario_id <> ?
+                      AND cu.estado = 'activo'
+                    ORDER BY cu.fecha_ingreso ASC, cu.id ASC
+                    LIMIT 1
+                    FOR UPDATE
+                ";
+                $stmt = $this->pdo->prepare($sql);
+                $stmt->execute([$conversacionId, $usuarioId]);
+                $administradorSiguiente = $stmt->fetchColumn();
+            }
+
+            $stmt = $this->pdo->prepare(
+                "UPDATE conversacion_usuarios
+                 SET estado = 'salio', fecha_salida = NOW()
+                 WHERE conversacion_id = ? AND usuario_id = ? AND estado = 'activo'"
+            );
+            $stmt->execute([$conversacionId, $usuarioId]);
+
+            if ($administradorSiguiente) {
+                $stmt = $this->pdo->prepare(
+                    "UPDATE conversacion_usuarios
+                     SET rol = 'administrador'
+                     WHERE conversacion_id = ? AND usuario_id = ? AND estado = 'activo'"
+                );
+                $stmt->execute([$conversacionId, $administradorSiguiente]);
+            }
+
+            $nombre = trim(($miembro['nombre'] ?? '') . ' ' . ($miembro['apellido'] ?? ''));
+            if ($nombre === '') $nombre = 'Un integrante';
+            $textoSistema = $nombre . ' salió del grupo';
+
+            $stmt = $this->pdo->prepare(
+                "INSERT INTO mensajes (conversacion_id, remitente_id, mensaje, mensaje_tipo, estado)
+                 VALUES (?, ?, ?, 'sistema', 'activo')"
+            );
+            $stmt->execute([$conversacionId, $usuarioId, $textoSistema]);
+            $mensajeId = (int)$this->pdo->lastInsertId();
+
+            // La notificación llega solo a quienes permanecen activos en el grupo.
+            $stmt = $this->pdo->prepare(
+                "INSERT INTO mensaje_destinatarios (mensaje_id, usuario_id, estado)
+                 SELECT ?, usuario_id, 'enviado'
+                 FROM conversacion_usuarios
+                 WHERE conversacion_id = ? AND estado = 'activo'"
+            );
+            $stmt->execute([$mensajeId, $conversacionId]);
+
+            $stmt = $this->pdo->prepare(
+                "SELECT COUNT(*) FROM conversacion_usuarios
+                 WHERE conversacion_id = ? AND estado = 'activo'"
+            );
+            $stmt->execute([$conversacionId]);
+            if ((int)$stmt->fetchColumn() === 0) {
+                $stmt = $this->pdo->prepare(
+                    "UPDATE conversaciones SET estado = 'eliminada' WHERE id = ? AND tipo = 'grupo'"
+                );
+                $stmt->execute([$conversacionId]);
+            }
+
+            $stmt = $this->pdo->prepare(
+                "UPDATE conversaciones SET fecha_actualizacion = NOW() WHERE id = ?"
+            );
+            $stmt->execute([$conversacionId]);
+
+            $this->pdo->commit();
+            print json_encode(['ok' => true, 'mensaje' => 'Saliste del grupo'], JSON_UNESCAPED_UNICODE);
+        } catch (Throwable $e) {
+            if ($this->pdo->inTransaction()) $this->pdo->rollBack();
+            error_log('salirGrupo: ' . $e->getMessage());
+            print json_encode(['ok' => false, 'error' => 'No se pudo salir del grupo'], JSON_UNESCAPED_UNICODE);
+        }
+    }
 
     public function crearGrupo($p, $g)
     {

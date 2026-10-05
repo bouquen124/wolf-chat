@@ -46,7 +46,7 @@
             <ion-label class="chat-label">
               <h2 class="chat-name">{{ chat.nombre }}</h2>
               <p class="chat-message">
-                {{ chat.mensaje || 'Sin mensajes en esta conversación' }}
+                {{ chat.mensaje || "Sin mensajes en esta conversación" }}
               </p>
             </ion-label>
 
@@ -73,13 +73,11 @@
           </div>
           <h3 class="empty-title">Sin conversaciones</h3>
           <p class="empty-subtitle">
-            Aún no tienes chats abiertos. Agrega a un contacto para comenzar a chatear.
+            Aún no tienes chats abiertos. Agrega a un contacto para comenzar a
+            chatear.
           </p>
 
-          <ion-button
-            class="btn-primary-glow"
-            @click="agregarContacto"
-          >
+          <ion-button class="btn-primary-glow" @click="agregarContacto">
             Agregar contacto
           </ion-button>
         </div>
@@ -101,8 +99,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue';
-import { useRouter } from 'vue-router';
+import { computed, ref } from "vue";
+import { useRouter } from "vue-router";
 
 import {
   IonPage,
@@ -119,12 +117,12 @@ import {
   IonFab,
   IonFabButton,
   IonIcon,
-  IonButton
-} from '@ionic/vue';
+  IonButton,
+  onIonViewDidLeave,
+  onIonViewWillEnter,
+} from "@ionic/vue";
 
-import {
-  addOutline
-} from 'ionicons/icons';
+import { addOutline } from "ionicons/icons";
 
 interface Chat {
   conversacion_id: number | null;
@@ -142,40 +140,44 @@ interface Chat {
 
 const router = useRouter();
 
-const busqueda = ref('');
+const busqueda = ref("");
 const chats = ref<Chat[]>([]);
 const cargando = ref(false);
 
 let intervaloChats: ReturnType<typeof setInterval> | null = null;
+let solicitudChatsEnCurso = false;
 
 const cargarChats = async () => {
+  if (solicitudChatsEnCurso) return;
+  solicitudChatsEnCurso = true;
+
   try {
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem("token");
 
     if (!token) {
-      alert('Sesión no válida');
+      alert("Sesión no válida");
       return;
     }
 
     cargando.value = true;
 
     const datos = new URLSearchParams();
-    datos.append('token', token);
+    datos.append("token", token);
 
     const respuesta = await fetch(
-      'http://localhost/new%20app/api/controladores/conversaciones_controlador.php?task=obtenerChats',
+      "http://localhost/new%20app/api/controladores/conversaciones_controlador.php?task=obtenerChats",
       {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/x-www-form-urlencoded'
+          "Content-Type": "application/x-www-form-urlencoded",
         },
-        body: datos.toString()
-      }
+        body: datos.toString(),
+      },
     );
 
     const resultado = await respuesta.json();
 
-    console.log('RESPUESTA CHATS:', resultado);
+    console.log("RESPUESTA CHATS:", resultado);
 
     if (!resultado.ok) {
       console.error(resultado.error);
@@ -185,47 +187,44 @@ const cargarChats = async () => {
     chats.value = resultado.chats.map((chat: Chat) => ({
       ...chat,
       nombre: `${chat.nombre} ${chat.apellido}`.trim(),
-      avatar: chat.foto || 'https://i.pravatar.cc/150?img=12',
-      hora: chat.fecha_envio
-        ? formatearHora(chat.fecha_envio)
-        : ''
+      avatar: chat.foto || "https://i.pravatar.cc/150?img=12",
+      hora: chat.fecha_envio ? formatearHora(chat.fecha_envio) : "",
     }));
-  }
-  catch (error) {
-    console.error('Error al cargar chats:', error);
-  }
-  finally {
+  } catch (error) {
+    console.error("Error al cargar chats:", error);
+  } finally {
+    solicitudChatsEnCurso = false;
     cargando.value = false;
   }
 };
 
 const crearConversacion = async (contactoId: number) => {
-  const token = localStorage.getItem('token');
+  const token = localStorage.getItem("token");
 
   if (!token) {
-    alert('Sesión no válida');
+    alert("Sesión no válida");
     return null;
   }
 
   try {
     const datos = new URLSearchParams();
-    datos.append('token', token);
-    datos.append('destinatario_id', contactoId.toString());
+    datos.append("token", token);
+    datos.append("destinatario_id", contactoId.toString());
 
     const respuesta = await fetch(
-      'http://localhost/new%20app/api/controladores/conversaciones_controlador.php?task=crearConversacion',
+      "http://localhost/new%20app/api/controladores/conversaciones_controlador.php?task=crearConversacion",
       {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/x-www-form-urlencoded'
+          "Content-Type": "application/x-www-form-urlencoded",
         },
-        body: datos.toString()
-      }
+        body: datos.toString(),
+      },
     );
 
     const resultado = await respuesta.json();
 
-    console.log('RESPUESTA CREAR CONVERSACION:', resultado);
+    console.log("RESPUESTA CREAR CONVERSACION:", resultado);
 
     if (!resultado.ok) {
       alert(resultado.error);
@@ -233,10 +232,9 @@ const crearConversacion = async (contactoId: number) => {
     }
 
     return Number(resultado.conversacion_id);
-  }
-  catch (error) {
-    console.error('Error al crear conversación:', error);
-    alert('Error al crear la conversación');
+  } catch (error) {
+    console.error("Error al crear conversación:", error);
+    alert("Error al crear la conversación");
     return null;
   }
 };
@@ -256,13 +254,13 @@ const abrirChat = async (chat: Chat) => {
 };
 
 const agregarContacto = () => {
-  router.push('/agregar-contacto');
+  router.push("/agregar-contacto");
 };
 
 const formatearHora = (fecha: string) => {
   return new Date(fecha).toLocaleTimeString([], {
-    hour: '2-digit',
-    minute: '2-digit'
+    hour: "2-digit",
+    minute: "2-digit",
   });
 };
 
@@ -273,20 +271,22 @@ const chatsFiltrados = computed(() => {
     return chats.value;
   }
 
-  return chats.value.filter(chat =>
-    chat.nombre.toLowerCase().includes(texto)
+  return chats.value.filter((chat) =>
+    chat.nombre.toLowerCase().includes(texto),
   );
 });
 
-onMounted(() => {
+onIonViewWillEnter(() => {
   cargarChats();
 
-  intervaloChats = setInterval(() => {
-    cargarChats();
-  }, 2000);
+  if (!intervaloChats) {
+    intervaloChats = setInterval(() => {
+      cargarChats();
+    }, 2000);
+  }
 });
 
-onUnmounted(() => {
+onIonViewDidLeave(() => {
   if (intervaloChats) {
     clearInterval(intervaloChats);
     intervaloChats = null;
@@ -299,7 +299,8 @@ onUnmounted(() => {
 .chats-page {
   --background: #090d16;
   background-color: #090d16;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
 
 .chats-content {
@@ -338,7 +339,7 @@ onUnmounted(() => {
 .glow-emerald {
   width: 300px;
   height: 300px;
-  background: #10b981;
+  background: var(--app-accent, #10b981);
   top: -60px;
   right: -60px;
 }
@@ -346,7 +347,7 @@ onUnmounted(() => {
 .glow-cyan {
   width: 260px;
   height: 260px;
-  background: #06b6d4;
+  background: var(--app-accent-secondary, #06b6d4);
   bottom: 80px;
   left: -80px;
 }
@@ -367,7 +368,7 @@ onUnmounted(() => {
   --background: rgba(255, 255, 255, 0.05);
   --color: #ffffff;
   --placeholder-color: #64748b;
-  --icon-color: #10b981;
+  --icon-color: var(--app-accent, #10b981);
   --clear-button-color: #94a3b8;
   --border-radius: 18px;
   --box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
@@ -416,7 +417,7 @@ onUnmounted(() => {
 .avatar-ring {
   padding: 2px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #10b981 0%, #06b6d4 100%);
+  background: linear-gradient(135deg, var(--app-accent, #10b981) 0%, var(--app-accent-secondary, #06b6d4) 100%);
   box-shadow: 0 0 12px rgba(16, 185, 129, 0.3);
 }
 
@@ -470,7 +471,7 @@ onUnmounted(() => {
 }
 
 .neon-badge {
-  --background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  --background: linear-gradient(135deg, var(--app-accent, #10b981) 0%, #059669 100%);
   --color: #ffffff;
   font-size: 11px;
   font-weight: 800;
@@ -498,7 +499,7 @@ onUnmounted(() => {
   width: 64px;
   height: 64px;
   border-radius: 20px;
-  background: linear-gradient(135deg, #10b981 0%, #06b6d4 100%);
+  background: linear-gradient(135deg, var(--app-accent, #10b981) 0%, var(--app-accent-secondary, #06b6d4) 100%);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -528,7 +529,7 @@ onUnmounted(() => {
 
 /* ===== BOTÓN NEÓN ===== */
 .btn-primary-glow {
-  --background: linear-gradient(135deg, #10b981 0%, #06b6d4 100%);
+  --background: linear-gradient(135deg, var(--app-accent, #10b981) 0%, var(--app-accent-secondary, #06b6d4) 100%);
   --color: #ffffff;
   --border-radius: 14px;
   --box-shadow: 0 6px 20px rgba(16, 185, 129, 0.35);
@@ -545,7 +546,7 @@ onUnmounted(() => {
 }
 
 .btn-fab-glow {
-  --background: linear-gradient(135deg, #10b981 0%, #06b6d4 100%);
+  --background: linear-gradient(135deg, var(--app-accent, #10b981) 0%, var(--app-accent-secondary, #06b6d4) 100%);
   --color: #ffffff;
   --box-shadow: 0 8px 25px rgba(16, 185, 129, 0.5);
   --border-radius: 18px;

@@ -32,12 +32,26 @@ class mensajes
 
         $token = $p['token'] ?? '';
         $conversacionId = isset($p['conversacion_id']) ? (int)$p['conversacion_id'] : 0;
-        $mensaje = trim($p['mensaje'] ?? '');
+        $mensajeRecibido = $p['mensaje'] ?? '';
+        $mensaje = is_string($mensajeRecibido) ? trim($mensajeRecibido) : '';
 
         if (!$token || !$conversacionId || $mensaje === '') {
             print json_encode([
                 'ok' => false,
                 'error' => 'Datos incompletos'
+            ], JSON_UNESCAPED_UNICODE);
+
+            return;
+        }
+
+        $longitudMensaje = function_exists('mb_strlen')
+            ? mb_strlen($mensaje, 'UTF-8')
+            : strlen($mensaje);
+
+        if ($longitudMensaje > 4000) {
+            print json_encode([
+                'ok' => false,
+                'error' => 'El mensaje no puede superar los 4000 caracteres'
             ], JSON_UNESCAPED_UNICODE);
 
             return;

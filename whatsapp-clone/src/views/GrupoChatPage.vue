@@ -13,8 +13,75 @@
           </div>
           <ion-title>{{ grupo.nombre }}</ion-title>
         </div>
+        <ion-button
+          slot="end"
+          fill="clear"
+          class="boton-integrantes"
+          aria-label="Ver integrantes del grupo"
+          @click="abrirIntegrantes"
+        >
+          <ion-icon :icon="peopleOutline" />
+        </ion-button>
+        <ion-button
+          slot="end"
+          fill="clear"
+          class="boton-salir"
+          aria-label="Salir del grupo"
+          @click="salirDelGrupo"
+        >
+          <ion-icon :icon="exitOutline" />
+        </ion-button>
       </ion-toolbar>
     </ion-header>
+
+    <ion-modal
+      :is-open="mostrarIntegrantes"
+      :initial-breakpoint="0.6"
+      :breakpoints="[0, 0.6, 0.9]"
+      :handle="true"
+      @didDismiss="cerrarIntegrantes"
+    >
+      <ion-header class="glass-header">
+        <ion-toolbar>
+          <ion-buttons slot="start">
+            <ion-button @click="cerrarIntegrantes">Cerrar</ion-button>
+          </ion-buttons>
+          <ion-title>Integrantes · {{ integrantes.length }}</ion-title>
+        </ion-toolbar>
+      </ion-header>
+      <ion-content class="integrantes-content">
+        <div v-if="cargandoIntegrantes" class="integrantes-mensaje">
+          Cargando integrantes...
+        </div>
+        <div v-else-if="errorIntegrantes" class="integrantes-mensaje">
+          {{ errorIntegrantes }}
+        </div>
+        <ion-list v-else class="integrantes-lista">
+          <ion-item
+            v-for="integrante in integrantes"
+            :key="integrante.id"
+            lines="none"
+          >
+            <ion-avatar slot="start">
+              <img
+                :src="integrante.foto || 'https://i.pravatar.cc/150?img=12'"
+                :alt="integrante.nombre"
+              />
+            </ion-avatar>
+            <ion-label>
+              <h2>
+                {{
+                  `${integrante.nombre || ""} ${integrante.apellido || ""}`.trim()
+                }}
+              </h2>
+            </ion-label>
+            <ion-badge v-if="integrante.rol === 'administrador'" slot="end">
+              Admin
+            </ion-badge>
+          </ion-item>
+        </ion-list>
+      </ion-content>
+    </ion-modal>
 
     <ion-content ref="contenido" class="chat-content">
       <div class="glow-emerald"></div>
@@ -26,11 +93,20 @@
           :key="mensaje.id"
           :class="[
             'mensaje',
-            esMiMensaje(mensaje.remitente_id) ? 'mensaje-yo' : 'mensaje-otro',
+            mensaje.mensaje_tipo === 'sistema'
+              ? 'mensaje-sistema'
+              : esMiMensaje(mensaje.remitente_id)
+                ? 'mensaje-yo'
+                : 'mensaje-otro',
           ]"
         >
           <div class="burbuja">
-            <strong v-if="!esMiMensaje(mensaje.remitente_id)">
+            <strong
+              v-if="
+                mensaje.mensaje_tipo !== 'sistema' &&
+                !esMiMensaje(mensaje.remitente_id)
+              "
+            >
               {{ mensaje.nombre }} {{ mensaje.apellido || "" }}
             </strong>
 
@@ -77,7 +153,7 @@
 </template>
 
 <script setup lang="ts">
-import { nextTick, onMounted, onUnmounted, ref } from "vue";
+import { nextTick, onUnmounted, ref } from "vue";
 import {
   IonPage,
   IonHeader,
@@ -91,11 +167,17 @@ import {
   IonInput,
   IonButton,
   IonIcon,
+  IonModal,
+  IonList,
+  IonItem,
+  IonLabel,
+  IonBadge,
+  alertController,
   onIonViewWillEnter,
   onIonViewWillLeave,
 } from "@ionic/vue";
-import { sendOutline } from "ionicons/icons";
-import { useRoute } from "vue-router";
+import { exitOutline, peopleOutline, sendOutline } from "ionicons/icons";
+import { useRoute, useRouter } from "vue-router";
 
 interface Grupo {
   conversacion_id: number;
@@ -115,7 +197,16 @@ interface Mensaje {
   estado_mensaje: "enviado" | "entregado" | "leido" | null;
 }
 
+interface Integrante {
+  id: number;
+  nombre: string;
+  apellido: string | null;
+  foto: string | null;
+  rol: string;
+}
+
 const route = useRoute();
+const router = useRouter();
 
 const token = localStorage.getItem("token") || "";
 
@@ -146,6 +237,10 @@ const grupo = ref<Grupo>({
 const nuevoMensaje = ref("");
 const mensajes = ref<Mensaje[]>([]);
 const enviando = ref(false);
+const integrantes = ref<Integrante[]>([]);
+const mostrarIntegrantes = ref(false);
+const cargandoIntegrantes = ref(false);
+const errorIntegrantes = ref("");
 
 // Referencia al ion-content para controlar el scroll
 const contenido = ref<InstanceType<typeof IonContent> | null>(null);
@@ -232,6 +327,82 @@ const obtenerGrupo = async () => {
     }
   } catch (error) {
     console.error("Error al obtener grupo:", error);
+  }
+};
+
+const abrirIntegrantes = async () => {
+  mostrarIntegrantes.value = true;
+  cargandoIntegrantes.value = true;
+  errorIntegrantes.value = "";
+
+  try {
+    const formData = new FormData();
+    formData.append("token", token);
+    formData.append("conversacion_id", String(conversacionId));
+
+    const respuesta = await fetch(
+      "http://localhost/new%20app/api/controladores/conversaciones_controlador.php?task=obtenerIntegrantesGrupo",
+      { method: "POST", body: formData, cache: "no-store" },
+    );
+    const datos = await respuesta.json();
+    if (!datos.ok)
+      throw new Error(datos.error || "No se pudieron cargar los integrantes.");
+
+    integrantes.value = Array.isArray(datos.integrantes)
+      ? datos.integrantes
+      : [];
+  } catch (error: any) {
+    console.error("Error al cargar integrantes del grupo:", error);
+    errorIntegrantes.value =
+      error.message || "No se pudieron cargar los integrantes.";
+  } finally {
+    cargandoIntegrantes.value = false;
+  }
+};
+
+const cerrarIntegrantes = () => {
+  mostrarIntegrantes.value = false;
+};
+
+const salirDelGrupo = async () => {
+  const confirmacion = await alertController.create({
+    mode: "ios",
+    header: "Salir del grupo",
+    message:
+      "¿Quieres salir de este grupo? Se avisará a los demás integrantes.",
+    buttons: [
+      { text: "Cancelar", role: "cancel" },
+      { text: "Salir", role: "destructive" },
+    ],
+  });
+  await confirmacion.present();
+  const { role } = await confirmacion.onDidDismiss();
+  if (role !== "destructive") return;
+
+  try {
+    const formData = new FormData();
+    formData.append("token", token);
+    formData.append("conversacion_id", String(conversacionId));
+
+    const respuesta = await fetch(
+      "http://localhost/new%20app/api/controladores/conversaciones_controlador.php?task=salirGrupo",
+      { method: "POST", body: formData, cache: "no-store" },
+    );
+    const datos = await respuesta.json();
+    if (!datos.ok)
+      throw new Error(datos.error || "No se pudo salir del grupo.");
+
+    detenerPolling();
+    await router.replace("/grupos");
+  } catch (error: any) {
+    console.error("Error al salir del grupo:", error);
+    const alerta = await alertController.create({
+      mode: "ios",
+      header: "No se pudo salir",
+      message: error.message || "Inténtalo de nuevo.",
+      buttons: ["Entendido"],
+    });
+    await alerta.present();
   }
 };
 
@@ -399,10 +570,6 @@ const formatearHora = (fecha: string) => {
 
 /* ===================== CICLO DE VIDA ===================== */
 
-onMounted(async () => {
-  await cargarGrupo();
-});
-
 onIonViewWillEnter(async () => {
   await cargarGrupo();
 });
@@ -451,12 +618,67 @@ onUnmounted(() => {
   color: #ffffff;
 }
 
+.boton-integrantes {
+  --color: #ffffff;
+}
+
+.boton-integrantes ion-icon {
+  font-size: 23px;
+}
+
+.boton-salir {
+  --color: #ffffff;
+}
+
+.boton-salir ion-icon {
+  font-size: 22px;
+}
+
+.integrantes-content {
+  --background: #090d16;
+}
+
+.integrantes-lista {
+  background: transparent;
+  padding: 8px 14px 24px;
+}
+
+.integrantes-lista ion-item {
+  --background: rgba(255, 255, 255, 0.05);
+  --color: #ffffff;
+  --border-radius: 16px;
+  margin-bottom: 8px;
+}
+
+.integrantes-lista ion-avatar {
+  width: 44px;
+  height: 44px;
+}
+
+.integrantes-lista h2 {
+  color: #ffffff;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.integrantes-lista ion-badge {
+  --background: rgba(16, 185, 129, 0.18);
+  --color: #34d399;
+  border: 1px solid rgba(16, 185, 129, 0.28);
+}
+
+.integrantes-mensaje {
+  padding: 28px 18px;
+  color: #aab3c1;
+  text-align: center;
+}
+
 .avatar-ring-header {
   width: 40px;
   height: 40px;
   padding: 2px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #10b981, #06b6d4);
+  background: linear-gradient(135deg, var(--app-accent, #10b981), var(--app-accent-secondary, #06b6d4));
   box-shadow: 0 0 16px rgba(16, 185, 129, 0.22);
 }
 
@@ -492,13 +714,13 @@ onUnmounted(() => {
 .glow-emerald {
   top: 40px;
   left: -140px;
-  background: #10b981;
+  background: var(--app-accent, #10b981);
 }
 
 .glow-cyan {
   bottom: 80px;
   right: -140px;
-  background: #06b6d4;
+  background: var(--app-accent-secondary, #06b6d4);
 }
 
 .mensajes {
@@ -509,6 +731,9 @@ onUnmounted(() => {
   gap: 12px;
   padding: 18px 14px 20px;
   min-height: 100%;
+  background: var(--app-chat-wallpaper, #090d16);
+  background-size: cover;
+  background-position: center;
 }
 
 .mensaje {
@@ -553,9 +778,23 @@ onUnmounted(() => {
   border-bottom-left-radius: 5px;
 }
 
+.mensaje-sistema {
+  justify-content: center;
+}
+
+.mensaje-sistema .burbuja {
+  max-width: 88%;
+  padding: 8px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  color: #aab3c1;
+  background: rgba(255, 255, 255, 0.06);
+  text-align: center;
+}
+
 .burbuja strong {
   font-size: 12px;
-  color: #10b981;
+  color: var(--app-accent, #10b981);
   margin-bottom: 4px;
 }
 
@@ -581,7 +820,7 @@ onUnmounted(() => {
 }
 
 .estado-mensaje.mensaje-leido {
-  color: #06b6d4;
+  color: var(--app-accent-secondary, #06b6d4);
 }
 
 .glass-footer {
@@ -615,7 +854,7 @@ onUnmounted(() => {
 }
 
 .send-button {
-  --background: linear-gradient(135deg, #10b981, #06b6d4);
+  --background: linear-gradient(135deg, var(--app-accent, #10b981), var(--app-accent-secondary, #06b6d4));
   --background-activated: linear-gradient(135deg, #059669, #0891b2);
   --color: #ffffff;
   --border-radius: 16px;

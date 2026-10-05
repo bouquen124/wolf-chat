@@ -15,7 +15,6 @@
 
       <div class="login-wrapper">
         <div class="login-card">
-
           <!-- Logo Orbe Futurista -->
           <div class="logo-wrapper">
             <div class="logo-orb">
@@ -30,7 +29,7 @@
           </div>
 
           <!-- Formulario -->
-          <div class="form-container">
+          <form class="form-container" @submit.prevent="iniciarSesion">
             <div class="input-group">
               <ion-item lines="none" class="custom-input-item">
                 <ion-input
@@ -38,6 +37,9 @@
                   label="Teléfono"
                   label-placement="floating"
                   type="tel"
+                  inputmode="tel"
+                  autocomplete="username"
+                  autocapitalize="off"
                   class="custom-input"
                 />
               </ion-item>
@@ -50,30 +52,41 @@
                   label="Contraseña"
                   label-placement="floating"
                   type="password"
+                  autocomplete="current-password"
                   class="custom-input"
                 />
               </ion-item>
             </div>
 
+            <ion-button
+              class="boton-recuperacion"
+              fill="clear"
+              type="button"
+              @click="iniciarRecuperacion"
+            >
+              ¿Olvidaste tu contraseña?
+            </ion-button>
+
             <!-- Botones -->
             <ion-button
               expand="block"
               class="btn-primary-glow"
-              @click="iniciarSesion"
+              type="submit"
+              :disabled="cargando"
             >
-              Iniciar sesión
+              {{ cargando ? "Iniciando sesión…" : "Iniciar sesión" }}
             </ion-button>
 
             <ion-button
               expand="block"
               fill="clear"
               class="btn-secondary-glass"
+              type="button"
               @click="irRegistro"
             >
               ¿No tienes cuenta? <span class="highlight">Regístrate</span>
             </ion-button>
-          </div>
-
+          </form>
         </div>
       </div>
     </ion-content>
@@ -81,8 +94,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
-import { useRouter } from 'vue-router';
+import { ref } from "vue";
+import { useRouter } from "vue-router";
 import {
   IonPage,
   IonHeader,
@@ -92,59 +105,210 @@ import {
   IonItem,
   IonInput,
   IonButton,
-  IonIcon
-} from '@ionic/vue';
-import { logInOutline } from 'ionicons/icons';
+  IonIcon,
+  alertController,
+} from "@ionic/vue";
+import { logInOutline } from "ionicons/icons";
 
 const router = useRouter();
 
-const telefono = ref('');
-const password = ref('');
+const telefono = ref("");
+const password = ref("");
+const cargando = ref(false);
 
-const iniciarSesion = async () => {
-  if (!telefono.value || !password.value) {
-    alert('Completa todos los campos');
+const mostrarAlerta = async (header: string, message: string) => {
+  const alerta = await alertController.create({
+    mode: "ios",
+    header,
+    message,
+    buttons: ["OK"],
+  });
+  await alerta.present();
+};
+
+const iniciarRecuperacion = async () => {
+  let telefonoCapturado = "";
+  const formulario = await alertController.create({
+    mode: "ios",
+    header: "Recuperar contraseña",
+    message: "Escribe el número de teléfono asociado a tu cuenta.",
+    inputs: [
+      {
+        name: "telefono",
+        type: "tel",
+        placeholder: "Teléfono",
+        attributes: {
+          inputmode: "tel",
+          autocomplete: "tel",
+          maxlength: 20,
+        },
+      },
+    ],
+    buttons: [
+      { text: "Cancelar", role: "cancel" },
+      {
+        text: "Continuar",
+        role: "confirm",
+        handler: (valores: any) => {
+          telefonoCapturado = String(valores?.telefono || "").trim();
+          return true;
+        },
+      },
+    ],
+  });
+
+  await formulario.present();
+  const { role } = await formulario.onDidDismiss();
+  if (role !== "confirm") return;
+
+  const telefonoRecuperacion = telefonoCapturado;
+  if (!telefonoRecuperacion) {
+    await mostrarAlerta("Falta el teléfono", "Escribe el número asociado a tu cuenta.");
+    return;
+  }
+
+  let passwordCapturada = "";
+  let confirmacionCapturada = "";
+  const formularioPassword = await alertController.create({
+    mode: "ios",
+    header: "Nueva contraseña",
+    message: "Esta opción está habilitada solo en tu entorno local de desarrollo.",
+    inputs: [
+      {
+        name: "password",
+        type: "password",
+        placeholder: "Nueva contraseña (mínimo 8 caracteres)",
+        attributes: { minlength: 8, autocomplete: "new-password" },
+      },
+      {
+        name: "confirmarPassword",
+        type: "password",
+        placeholder: "Confirma la contraseña",
+        attributes: { minlength: 8, autocomplete: "new-password" },
+      },
+    ],
+    buttons: [
+      { text: "Cancelar", role: "cancel" },
+      {
+        text: "Restablecer",
+        role: "confirm",
+        handler: (valores: any) => {
+          passwordCapturada = String(valores?.password || "");
+          confirmacionCapturada = String(valores?.confirmarPassword || "");
+          return true;
+        },
+      },
+    ],
+  });
+
+  await formularioPassword.present();
+  const resultadoPassword = await formularioPassword.onDidDismiss();
+  if (resultadoPassword.role !== "confirm") return;
+
+  const passwordNueva = passwordCapturada;
+  const confirmarPassword = confirmacionCapturada;
+
+  if (passwordNueva.length < 8) {
+    await mostrarAlerta("Contraseña muy corta", "Usa al menos 8 caracteres.");
+    return;
+  }
+
+  if (passwordNueva !== confirmarPassword) {
+    await mostrarAlerta("No coincide", "Las contraseñas que escribiste no coinciden.");
     return;
   }
 
   try {
     const datos = new URLSearchParams();
-    datos.append('telefono', telefono.value);
-    datos.append('password', password.value);
+    datos.append("telefono", telefonoRecuperacion);
+    datos.append("password", passwordNueva);
 
     const respuesta = await fetch(
-      'http://localhost/new%20app/api/controladores/usuarios_controlador.php?task=login',
+      "http://localhost/new%20app/api/controladores/usuarios_controlador.php?task=restablecerPasswordDesarrollo",
       {
-        method: 'POST',
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: datos.toString(),
+      },
+    );
+    const resultado = await respuesta.json();
+
+    if (!resultado.ok) {
+      throw new Error(resultado.error || "No se pudo restablecer la contraseña.");
+    }
+
+    await mostrarAlerta(
+      "Contraseña actualizada",
+      "Ya puedes iniciar sesión con tu nueva contraseña.",
+    );
+  } catch (error) {
+    console.error("Error al restablecer la contraseña:", error);
+    await mostrarAlerta(
+      "No se pudo restablecer",
+      error instanceof Error ? error.message : "Inténtalo de nuevo.",
+    );
+  }
+};
+
+const iniciarSesion = async () => {
+  const telefonoLimpio = telefono.value.trim();
+  if (!telefonoLimpio || !password.value) {
+    await mostrarAlerta(
+      "Datos incompletos",
+      "Completa tu teléfono y contraseña.",
+    );
+    return;
+  }
+
+  if (cargando.value) return;
+  cargando.value = true;
+
+  try {
+    const datos = new URLSearchParams();
+    datos.append("telefono", telefonoLimpio);
+    datos.append("password", password.value);
+
+    const respuesta = await fetch(
+      "http://localhost/new%20app/api/controladores/usuarios_controlador.php?task=login",
+      {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/x-www-form-urlencoded'
+          "Content-Type": "application/x-www-form-urlencoded",
         },
-        body: datos.toString()
-      }
+        body: datos.toString(),
+      },
     );
 
-    const texto = await respuesta.text();
-    console.log('RESPUESTA PHP:', texto);
-
-    const resultado = JSON.parse(texto);
-    console.log('RESULTADO:', resultado);
+    const resultado = await respuesta.json();
 
     if (resultado.ok) {
-      localStorage.setItem('token', resultado.token);
-      localStorage.setItem('usuario', JSON.stringify(resultado.usuario));
-      alert('Bienvenido ' + resultado.usuario.nombre);
-      router.push('/chats');
+      if (!resultado.token || !resultado.usuario) {
+        throw new Error("El servidor no devolvió los datos de sesión.");
+      }
+      localStorage.setItem("token", resultado.token);
+      localStorage.setItem("usuario", JSON.stringify(resultado.usuario));
+      await router.replace("/chats");
     } else {
-      alert(resultado.error);
+      await mostrarAlerta(
+        "No se pudo iniciar sesión",
+        resultado.error || "Revisa tus datos e inténtalo de nuevo.",
+      );
     }
   } catch (error) {
-    console.error('ERROR COMPLETO:', error);
-    alert('Error al iniciar sesión');
+    console.error("ERROR COMPLETO:", error);
+    await mostrarAlerta(
+      "Error de conexión",
+      error instanceof Error
+        ? error.message
+        : "No se pudo iniciar sesión. Inténtalo de nuevo.",
+    );
+  } finally {
+    cargando.value = false;
   }
 };
 
 const irRegistro = () => {
-  router.push('/registro');
+  router.push("/registro");
 };
 </script>
 
@@ -153,7 +317,8 @@ const irRegistro = () => {
 .login-page {
   --background: #090d16;
   background-color: #090d16;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
 
 .login-content {
@@ -200,7 +365,7 @@ const irRegistro = () => {
 .glow-2 {
   width: 300px;
   height: 300px;
-  background: #06b6d4;
+  background: var(--app-accent-secondary, #06b6d4);
   bottom: -60px;
   right: -60px;
 }
@@ -239,7 +404,7 @@ const irRegistro = () => {
   width: 76px;
   height: 76px;
   border-radius: 24px;
-  background: linear-gradient(135deg, #6366f1 0%, #06b6d4 100%);
+  background: linear-gradient(135deg, #6366f1 0%, var(--app-accent-secondary, #06b6d4) 100%);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -291,7 +456,7 @@ const irRegistro = () => {
   --background: rgba(255, 255, 255, 0.04);
   --border-radius: 16px;
   --padding-start: 16px;
-  --highlight-color-focused: #06b6d4;
+  --highlight-color-focused: var(--app-accent-secondary, #06b6d4);
   border: 1px solid rgba(255, 255, 255, 0.06);
   transition: all 0.2s ease;
 }
@@ -304,14 +469,14 @@ const irRegistro = () => {
 .custom-input {
   --color: #ffffff;
   --placeholder-color: #64748b;
-  --highlight-color-focused: #06b6d4;
+  --highlight-color-focused: var(--app-accent-secondary, #06b6d4);
   color: #ffffff;
 }
 
 /* ===== BOTONES ===== */
 .btn-primary-glow {
   margin-top: 10px;
-  --background: linear-gradient(135deg, #6366f1 0%, #06b6d4 100%);
+  --background: linear-gradient(135deg, #6366f1 0%, var(--app-accent-secondary, #06b6d4) 100%);
   --color: #ffffff;
   --border-radius: 16px;
   --box-shadow: 0 8px 25px rgba(99, 102, 241, 0.35);
@@ -327,6 +492,15 @@ const irRegistro = () => {
   --color: #94a3b8;
   font-size: 14px;
   font-weight: 500;
+  text-transform: none;
+}
+
+.boton-recuperacion {
+  align-self: flex-end;
+  margin: -8px 0 0;
+  --color: #38bdf8;
+  font-size: 13px;
+  font-weight: 600;
   text-transform: none;
 }
 

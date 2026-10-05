@@ -12,19 +12,47 @@
           <div class="foto-container">
             <div class="foto-ring">
               <ion-avatar class="foto-perfil">
-                <img :src="usuario.avatar" />
+                <img :src="usuario.avatar" :alt="nombreCompleto" />
               </ion-avatar>
             </div>
 
-            <ion-button class="boton-camara" shape="round">
+            <ion-button
+              class="boton-camara"
+              shape="round"
+              aria-label="Cambiar foto de perfil"
+              :disabled="subiendoFoto"
+              @click="seleccionarFoto"
+            >
               <ion-icon :icon="cameraOutline" />
             </ion-button>
+            <input
+              ref="entradaFoto"
+              class="entrada-foto-oculta"
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              @change="subirFotoPerfil"
+            />
+            <input
+              ref="entradaFondo"
+              class="entrada-foto-oculta"
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              @change="guardarFondoChats"
+            />
           </div>
 
-          <h1>{{ usuario.nombre }}</h1>
+          <h1>{{ nombreCompleto }}</h1>
           <p class="telefono">{{ usuario.telefono }}</p>
+          <p v-if="usuario.descripcion" class="descripcion-perfil">
+            {{ usuario.descripcion }}
+          </p>
 
-          <ion-button fill="outline" shape="round" class="boton-editar">
+          <ion-button
+            fill="outline"
+            shape="round"
+            class="boton-editar"
+            @click="editarPerfil"
+          >
             <ion-icon slot="start" :icon="createOutline" />
             Editar perfil
           </ion-button>
@@ -68,7 +96,7 @@
               />
             </ion-item>
 
-            <ion-item button lines="none" class="opcion">
+            <ion-item button lines="none" class="opcion" @click="cambiarColorApp">
               <div slot="start" class="icono-opcion">
                 <ion-icon :icon="colorPaletteOutline" />
               </div>
@@ -83,6 +111,19 @@
                 class="flecha"
                 :icon="chevronForwardOutline"
               />
+            </ion-item>
+
+            <ion-item button lines="none" class="opcion" @click="cambiarFondoChats">
+              <div slot="start" class="icono-opcion">
+                <ion-icon :icon="imageOutline" />
+              </div>
+
+              <ion-label>
+                <h2>Fondo de chats</h2>
+                <p>Elige una imagen para tus conversaciones</p>
+              </ion-label>
+
+              <ion-icon slot="end" class="flecha" :icon="chevronForwardOutline" />
             </ion-item>
 
             <ion-item button lines="none" class="opcion">
@@ -125,7 +166,12 @@
           <span class="seccion-titulo">SESIÓN</span>
 
           <ion-list class="lista-opciones">
-            <ion-item button lines="none" class="opcion cerrar-sesion">
+            <ion-item
+              button
+              lines="none"
+              class="opcion cerrar-sesion"
+              @click="cerrarSesion"
+            >
               <div slot="start" class="icono-opcion icono-salida">
                 <ion-icon :icon="logOutOutline" />
               </div>
@@ -149,7 +195,8 @@
   </ion-page>
 </template>
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
+import { computed, ref } from "vue";
+import { useRouter } from "vue-router";
 import {
   IonPage,
   IonHeader,
@@ -162,6 +209,9 @@ import {
   IonList,
   IonItem,
   IonLabel,
+  alertController,
+  actionSheetController,
+  onIonViewWillEnter,
 } from "@ionic/vue";
 import {
   cameraOutline,
@@ -170,37 +220,364 @@ import {
   lockClosedOutline,
   colorPaletteOutline,
   cloudOutline,
+  imageOutline,
   informationCircleOutline,
   logOutOutline,
   chevronForwardOutline,
 } from "ionicons/icons";
-interface Usuario {
+import {
+  APP_THEMES,
+  guardarPreferenciasApp,
+  guardarFondoEnCuenta,
+  guardarTemaEnCuenta,
+  quitarFondoDeCuenta,
+} from "../utils/appPreferences";
+
+interface UsuarioPerfil {
   id: number;
   telefono: string;
   nombre: string;
-  apellido: string;
+  apellido: string | null;
   foto: string | null;
+  descripcion?: string | null;
 }
+
+const router = useRouter();
+const avatarPredeterminado = "https://i.pravatar.cc/300?img=12";
+const entradaFoto = ref<HTMLInputElement | null>(null);
+const entradaFondo = ref<HTMLInputElement | null>(null);
+const subiendoFoto = ref(false);
 const usuario = ref({
+  id: 0,
   nombre: "",
+  apellido: "",
   telefono: "",
-  avatar: "https://i.pravatar.cc/300?img=12",
+  descripcion: "",
+  avatar: avatarPredeterminado,
 });
+
+const nombreCompleto = computed(
+  () => `${usuario.value.nombre} ${usuario.value.apellido}`.trim(),
+);
+
+const mostrarAlerta = async (header: string, message: string) => {
+  const alerta = await alertController.create({
+    mode: "ios",
+    header,
+    message,
+    buttons: ["Aceptar"],
+  });
+  await alerta.present();
+};
+
+const guardarUsuarioLocal = (usuarioApi: UsuarioPerfil) => {
+  localStorage.setItem("usuario", JSON.stringify(usuarioApi));
+  usuario.value = {
+    id: Number(usuarioApi.id),
+    nombre: usuarioApi.nombre || "",
+    apellido: usuarioApi.apellido || "",
+    telefono: usuarioApi.telefono || "",
+    descripcion: usuarioApi.descripcion || "",
+    avatar: usuarioApi.foto || avatarPredeterminado,
+  };
+};
+
 const cargarUsuario = () => {
   const usuarioGuardado = localStorage.getItem("usuario");
   if (!usuarioGuardado) {
     return;
   }
-  const usuarioApi: Usuario = JSON.parse(usuarioGuardado);
-  usuario.value = {
-    nombre: `${usuarioApi.nombre} ${usuarioApi.apellido}`,
-    telefono: usuarioApi.telefono,
-    avatar: usuarioApi.foto || "https://i.pravatar.cc/300?img=12",
-  };
+  try {
+    const usuarioApi = JSON.parse(usuarioGuardado) as UsuarioPerfil;
+    guardarUsuarioLocal(usuarioApi);
+  } catch (error) {
+    console.error("No se pudieron leer los datos locales del perfil:", error);
+  }
 };
-onMounted(() => {
-  cargarUsuario();
-});
+
+onIonViewWillEnter(cargarUsuario);
+
+const editarPerfil = async () => {
+  const token = localStorage.getItem("token") || "";
+  if (!token) {
+    await mostrarAlerta("Sesión no válida", "Inicia sesión para editar tu perfil.");
+    return;
+  }
+
+  let nombre = usuario.value.nombre;
+  let apellido = usuario.value.apellido;
+  let descripcion = usuario.value.descripcion;
+  const formulario = await alertController.create({
+    mode: "ios",
+    header: "Editar perfil",
+    inputs: [
+      { name: "nombre", type: "text", value: nombre, placeholder: "Nombre", attributes: { maxlength: 100 } },
+      { name: "apellido", type: "text", value: apellido, placeholder: "Apellido", attributes: { maxlength: 100 } },
+      { name: "descripcion", type: "text", value: descripcion, placeholder: "Acerca de ti", attributes: { maxlength: 255 } },
+    ],
+    buttons: [
+      { text: "Cancelar", role: "cancel" },
+      {
+        text: "Guardar",
+        role: "confirm",
+        handler: (valores: any) => {
+          nombre = String(valores?.nombre || "").trim();
+          apellido = String(valores?.apellido || "").trim();
+          descripcion = String(valores?.descripcion || "").trim();
+          return true;
+        },
+      },
+    ],
+  });
+  await formulario.present();
+  const { role } = await formulario.onDidDismiss();
+  if (role !== "confirm") return;
+
+  if (!nombre) {
+    await mostrarAlerta("Falta tu nombre", "El nombre no puede quedar vacío.");
+    return;
+  }
+
+  try {
+    const datos = new URLSearchParams();
+    datos.append("token", token);
+    datos.append("nombre", nombre);
+    datos.append("apellido", apellido);
+    datos.append("descripcion", descripcion);
+
+    const respuesta = await fetch(
+      "http://localhost/new%20app/api/controladores/usuarios_controlador.php?task=actualizarPerfil",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: datos.toString(),
+      },
+    );
+    const resultado = await respuesta.json();
+    if (!resultado.ok || !resultado.usuario) {
+      throw new Error(resultado.error || "No se pudo guardar el perfil.");
+    }
+
+    guardarUsuarioLocal(resultado.usuario as UsuarioPerfil);
+    await mostrarAlerta("Perfil actualizado", "Tus datos se guardaron correctamente.");
+  } catch (error) {
+    console.error("Error al actualizar perfil:", error);
+    await mostrarAlerta(
+      "No se pudo actualizar",
+      error instanceof Error ? error.message : "Inténtalo de nuevo.",
+    );
+  }
+};
+
+const seleccionarFoto = () => entradaFoto.value?.click();
+
+const subirFotoPerfil = async (evento: Event) => {
+  const elemento = evento.target as HTMLInputElement;
+  const archivo = elemento.files?.[0];
+  if (!archivo) return;
+
+  if (archivo.size > 5 * 1024 * 1024) {
+    await mostrarAlerta("Imagen muy grande", "La foto debe pesar menos de 5 MB.");
+    elemento.value = "";
+    return;
+  }
+
+  const token = localStorage.getItem("token") || "";
+  if (!token) {
+    await mostrarAlerta("Sesión no válida", "Inicia sesión para cambiar tu foto.");
+    elemento.value = "";
+    return;
+  }
+
+  subiendoFoto.value = true;
+  try {
+    const datos = new FormData();
+    datos.append("token", token);
+    datos.append("foto", archivo);
+
+    const respuesta = await fetch(
+      "http://localhost/new%20app/api/controladores/usuarios_controlador.php?task=actualizarFotoPerfil",
+      { method: "POST", body: datos },
+    );
+    const resultado = await respuesta.json();
+    if (!resultado.ok || !resultado.foto) {
+      throw new Error(resultado.error || "No se pudo actualizar la foto.");
+    }
+
+    const usuarioGuardado = JSON.parse(localStorage.getItem("usuario") || "{}");
+    usuarioGuardado.foto = resultado.foto;
+    guardarUsuarioLocal(usuarioGuardado as UsuarioPerfil);
+    await mostrarAlerta("Foto actualizada", "Tu foto de perfil se guardó correctamente.");
+  } catch (error) {
+    console.error("Error al subir la foto de perfil:", error);
+    await mostrarAlerta(
+      "No se pudo cambiar la foto",
+      error instanceof Error ? error.message : "Inténtalo de nuevo.",
+    );
+  } finally {
+    subiendoFoto.value = false;
+    elemento.value = "";
+  }
+};
+
+const cambiarColorApp = async () => {
+  const selector = await actionSheetController.create({
+    mode: "ios",
+    header: "Color de la aplicación",
+    buttons: [
+      ...APP_THEMES.map((tema) => ({
+        text: tema.label,
+        handler: async () => {
+          const token = localStorage.getItem("token") || "";
+          if (!token) {
+            await mostrarAlerta("Sesión no válida", "Inicia sesión para guardar tu apariencia.");
+            return;
+          }
+          try {
+            const preferencias = await guardarTemaEnCuenta(token, tema.id);
+            guardarPreferenciasApp(preferencias);
+          } catch (error) {
+            console.error("No se pudo guardar el tema:", error);
+            await mostrarAlerta(
+              "No se pudo guardar el color",
+              error instanceof Error ? error.message : "Inténtalo de nuevo.",
+            );
+          }
+        },
+      })),
+      { text: "Cancelar", role: "cancel" as const },
+    ],
+  });
+  await selector.present();
+};
+
+const cambiarFondoChats = async () => {
+  const selector = await actionSheetController.create({
+    mode: "ios",
+    header: "Fondo de chats",
+    buttons: [
+      {
+        text: "Elegir una foto",
+        handler: () => entradaFondo.value?.click(),
+      },
+      {
+        text: "Restaurar fondo original",
+        handler: async () => {
+          try {
+            const token = localStorage.getItem("token") || "";
+            if (!token) throw new Error("Inicia sesión para guardar tus preferencias.");
+            const preferencias = await quitarFondoDeCuenta(token);
+            guardarPreferenciasApp(preferencias);
+            await mostrarAlerta("Fondo restaurado", "Se quitó la imagen de fondo de tus chats.");
+          } catch (error) {
+            console.error("No se pudo restaurar el fondo:", error);
+            await mostrarAlerta("No se pudo restaurar", "Inténtalo de nuevo.");
+          }
+        },
+      },
+      { text: "Cancelar", role: "cancel" },
+    ],
+  });
+  await selector.present();
+};
+
+const leerArchivoComoDataUrl = (archivo: File) =>
+  new Promise<string>((resolve, reject) => {
+    const lector = new FileReader();
+    lector.onload = () =>
+      typeof lector.result === "string" ? resolve(lector.result) : reject(new Error("No se pudo leer la foto."));
+    lector.onerror = () => reject(new Error("No se pudo leer la foto."));
+    lector.readAsDataURL(archivo);
+  });
+
+const comprimirFondo = async (archivo: File) => {
+  const origen = await leerArchivoComoDataUrl(archivo);
+  const imagen = await new Promise<HTMLImageElement>((resolve, reject) => {
+    const elemento = new Image();
+    elemento.onload = () => resolve(elemento);
+    elemento.onerror = () => reject(new Error("El archivo no es una imagen válida."));
+    elemento.src = origen;
+  });
+
+  const escala = Math.min(1, 1200 / Math.max(imagen.naturalWidth, imagen.naturalHeight));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round(imagen.naturalWidth * escala));
+  canvas.height = Math.max(1, Math.round(imagen.naturalHeight * escala));
+  const contexto = canvas.getContext("2d");
+  if (!contexto) throw new Error("No se pudo procesar la imagen.");
+
+  contexto.drawImage(imagen, 0, 0, canvas.width, canvas.height);
+  const comprimida = canvas.toDataURL("image/jpeg", 0.66);
+  if (comprimida.length > 1_500_000) {
+    throw new Error("La imagen sigue siendo muy pesada. Elige otra foto más pequeña.");
+  }
+  return comprimida;
+};
+
+const guardarFondoChats = async (evento: Event) => {
+  const elemento = evento.target as HTMLInputElement;
+  const archivo = elemento.files?.[0];
+  if (!archivo) return;
+
+  if (!archivo.type.startsWith("image/") || archivo.size > 5 * 1024 * 1024) {
+    await mostrarAlerta("Imagen no válida", "Elige una imagen de hasta 5 MB.");
+    elemento.value = "";
+    return;
+  }
+
+  try {
+    const wallpaperDataUrl = await comprimirFondo(archivo);
+    const token = localStorage.getItem("token") || "";
+    if (!token) throw new Error("Inicia sesión para guardar tus preferencias.");
+    const fondo = await fetch(wallpaperDataUrl).then((respuesta) => respuesta.blob());
+    const preferencias = await guardarFondoEnCuenta(token, fondo);
+    guardarPreferenciasApp(preferencias);
+    await mostrarAlerta("Fondo actualizado", "Se guardó en tu cuenta y se aplicará en tus dispositivos.");
+  } catch (error) {
+    console.error("No se pudo guardar el fondo de chats:", error);
+    await mostrarAlerta(
+      "No se pudo guardar el fondo",
+      error instanceof Error ? error.message : "Inténtalo de nuevo.",
+    );
+  } finally {
+    elemento.value = "";
+  }
+};
+
+const cerrarSesion = async () => {
+  const confirmacion = await alertController.create({
+    mode: "ios",
+    header: "Cerrar sesión",
+    message: "¿Quieres salir de tu cuenta en este dispositivo?",
+    buttons: [
+      { text: "Cancelar", role: "cancel" },
+      { text: "Cerrar sesión", role: "destructive" },
+    ],
+  });
+  await confirmacion.present();
+  const { role } = await confirmacion.onDidDismiss();
+  if (role !== "destructive") return;
+
+  const token = localStorage.getItem("token") || "";
+  try {
+    const datos = new URLSearchParams();
+    datos.append("token", token);
+    await fetch(
+      "http://localhost/new%20app/api/controladores/usuarios_controlador.php?task=cerrarSesion",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: datos.toString(),
+      },
+    );
+  } catch (error) {
+    console.error("No se pudo notificar el cierre de sesión al servidor:", error);
+  } finally {
+    localStorage.removeItem("token");
+    localStorage.removeItem("usuario");
+    await router.replace("/login");
+  }
+};
 </script>
 <style scoped>
 .perfil-page {
@@ -248,12 +625,12 @@ ion-content {
 .glow-emerald {
   top: 50px;
   left: -140px;
-  background: #10b981;
+  background: var(--app-accent, #10b981);
 }
 .glow-cyan {
   top: 400px;
   right: -150px;
-  background: #06b6d4;
+  background: var(--app-accent-secondary, #06b6d4);
 }
 .perfil-card {
   display: flex;
@@ -272,12 +649,15 @@ ion-content {
   position: relative;
   margin-bottom: 16px;
 }
+.entrada-foto-oculta {
+  display: none;
+}
 .foto-ring {
   width: 116px;
   height: 116px;
   padding: 3px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #10b981, #06b6d4);
+  background: linear-gradient(135deg, var(--app-accent, #10b981), var(--app-accent-secondary, #06b6d4));
   box-shadow:
     0 0 25px rgba(16, 185, 129, 0.2),
     0 0 45px rgba(6, 182, 212, 0.08);
@@ -301,7 +681,7 @@ ion-content {
   width: 42px;
   height: 42px;
   margin: 0;
-  --background: linear-gradient(135deg, #10b981, #06b6d4);
+  --background: linear-gradient(135deg, var(--app-accent, #10b981), var(--app-accent-secondary, #06b6d4));
   --color: #ffffff;
   --box-shadow: 0 0 16px rgba(16, 185, 129, 0.28);
 }
@@ -319,9 +699,16 @@ ion-content {
   color: #8993a5;
   font-size: 14px;
 }
+.descripcion-perfil {
+  max-width: 280px;
+  margin: -8px 0 17px;
+  color: #b3bdca;
+  font-size: 13px;
+  line-height: 1.45;
+}
 .boton-editar {
   --border-color: rgba(16, 185, 129, 0.45);
-  --color: #10b981;
+  --color: var(--app-accent, #10b981);
   --background: rgba(16, 185, 129, 0.06);
   --background-hover: rgba(16, 185, 129, 0.12);
   --border-radius: 18px;
@@ -334,7 +721,7 @@ ion-content {
 .seccion-titulo {
   display: block;
   margin: 0 5px 10px;
-  color: #10b981;
+  color: var(--app-accent, #10b981);
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 1.2px;
@@ -370,7 +757,7 @@ ion-content {
   border-radius: 13px;
   background: rgba(16, 185, 129, 0.09);
   border: 1px solid rgba(16, 185, 129, 0.14);
-  color: #10b981;
+  color: var(--app-accent, #10b981);
 }
 .icono-opcion ion-icon {
   font-size: 21px;

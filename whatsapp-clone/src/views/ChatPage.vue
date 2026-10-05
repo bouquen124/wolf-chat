@@ -61,7 +61,7 @@
                 v-if="esMiMensaje(mensaje.remitente_id)"
                 class="estado-mensaje"
                 :class="{
-                  'mensaje-leido': mensaje.estado_mensaje === 'leido'
+                  'mensaje-leido': mensaje.estado_mensaje === 'leido',
                 }"
               >
                 {{
@@ -94,10 +94,7 @@
             {{ estadoLlamada }}
           </div>
 
-          <div
-            v-if="estadoLlamada === 'Conectada'"
-            class="duracion-llamada"
-          >
+          <div v-if="estadoLlamada === 'Conectada'" class="duracion-llamada">
             {{ formatearDuracion(duracionLlamada) }}
           </div>
         </div>
@@ -117,6 +114,7 @@
         v-model="nuevoMensaje"
         placeholder="Escribe un mensaje..."
         fill="outline"
+        maxlength="4000"
         :clear-input="true"
         @keyup.enter="enviarMensaje"
       />
@@ -144,7 +142,7 @@
 </template>
 
 <script setup lang="ts">
-import { nextTick, onMounted, onUnmounted, ref, watch } from "vue";
+import { nextTick, onUnmounted, ref, watch } from "vue";
 import { useRoute } from "vue-router";
 import {
   IonPage,
@@ -159,6 +157,8 @@ import {
   IonButton,
   IonIcon,
   IonAlert,
+  onIonViewDidLeave,
+  onIonViewWillEnter,
 } from "@ionic/vue";
 import { sendOutline, callOutline } from "ionicons/icons";
 
@@ -377,7 +377,7 @@ const cargarContacto = async () => {
 
     contacto.value = {
       id: usuario.id,
-      nombre: `${usuario.nombre} ${usuario.apellido}`,
+      nombre: `${usuario.nombre || ""} ${usuario.apellido || ""}`.trim(),
       avatar: usuario.foto || "https://i.pravatar.cc/150?img=12",
     };
 
@@ -1354,7 +1354,9 @@ const cargarMensajes = async (forzarScroll = false) => {
     }
 
     if (estados.length > 0) {
-      const mapa = new Map(estados.map((e) => [Number(e.id), e.estado_mensaje]));
+      const mapa = new Map(
+        estados.map((e) => [Number(e.id), e.estado_mensaje]),
+      );
 
       mensajes.value = mensajes.value.map((m) =>
         mapa.has(m.id) ? { ...m, estado_mensaje: mapa.get(m.id) ?? null } : m,
@@ -1477,17 +1479,35 @@ watch(
   },
 );
 
-onMounted(() => {
+onIonViewWillEnter(() => {
   cargarUsuario();
   cargarConversacion();
 
-  intervaloMensajes = setInterval(() => {
-    cargarMensajes();
-  }, 2000);
+  if (!intervaloMensajes) {
+    intervaloMensajes = setInterval(() => {
+      cargarMensajes();
+    }, 2000);
+  }
 
-  intervaloLlamadas = setInterval(() => {
-    revisarLlamadaEntrante();
-  }, 2000);
+  if (!intervaloLlamadas) {
+    intervaloLlamadas = setInterval(() => {
+      revisarLlamadaEntrante();
+    }, 2000);
+  }
+});
+
+onIonViewDidLeave(() => {
+  // La página puede quedar montada en ion-router-outlet; detén el polling
+  // para que un chat oculto no consulte y marque mensajes como leídos.
+  if (intervaloMensajes) {
+    clearInterval(intervaloMensajes);
+    intervaloMensajes = null;
+  }
+
+  if (intervaloLlamadas) {
+    clearInterval(intervaloLlamadas);
+    intervaloLlamadas = null;
+  }
 });
 
 onUnmounted(() => {
@@ -1512,7 +1532,8 @@ onUnmounted(() => {
 .chat-page {
   --background: #090d16;
   background-color: #090d16;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
 
 .chat-content {
@@ -1538,11 +1559,11 @@ onUnmounted(() => {
 }
 
 .header-action {
-  --color: #10b981;
+  --color: var(--app-accent, #10b981);
 }
 
 .header-add {
-  --color: #10b981;
+  --color: var(--app-accent, #10b981);
   font-weight: 700;
   text-transform: none;
 }
@@ -1578,7 +1599,7 @@ onUnmounted(() => {
 .glow-emerald {
   width: 300px;
   height: 300px;
-  background: #10b981;
+  background: var(--app-accent, #10b981);
   top: -60px;
   right: -60px;
 }
@@ -1586,7 +1607,7 @@ onUnmounted(() => {
 .glow-cyan {
   width: 260px;
   height: 260px;
-  background: #06b6d4;
+  background: var(--app-accent-secondary, #06b6d4);
   bottom: 80px;
   left: -80px;
 }
@@ -1599,7 +1620,8 @@ onUnmounted(() => {
   min-height: 100%;
   position: relative;
   z-index: 1;
-  background:
+  background: var(
+    --app-chat-wallpaper,
     radial-gradient(
       circle at 20% 20%,
       rgba(16, 185, 129, 0.07),
@@ -1610,7 +1632,10 @@ onUnmounted(() => {
       rgba(6, 182, 212, 0.07),
       transparent 30%
     ),
-    #090d16;
+    #090d16
+  );
+  background-size: cover;
+  background-position: center;
 }
 
 .mensaje {
@@ -1679,7 +1704,7 @@ onUnmounted(() => {
 }
 
 .estado-mensaje.mensaje-leido {
-  color: #06b6d4;
+  color: var(--app-accent-secondary, #06b6d4);
 }
 
 .barra-mensaje {
@@ -1706,7 +1731,7 @@ onUnmounted(() => {
 }
 
 .boton-enviar {
-  --background: linear-gradient(135deg, #10b981 0%, #06b6d4 100%);
+  --background: linear-gradient(135deg, var(--app-accent, #10b981) 0%, var(--app-accent-secondary, #06b6d4) 100%);
   --color: #ffffff;
   --box-shadow: 0 6px 18px rgba(16, 185, 129, 0.4);
   --border-radius: 16px;
@@ -1734,7 +1759,7 @@ onUnmounted(() => {
 .llamada-avatar-ring {
   padding: 2px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #10b981 0%, #06b6d4 100%);
+  background: linear-gradient(135deg, var(--app-accent, #10b981) 0%, var(--app-accent-secondary, #06b6d4) 100%);
   box-shadow: 0 0 14px rgba(16, 185, 129, 0.35);
 }
 
@@ -1775,7 +1800,7 @@ onUnmounted(() => {
 .avatar-ring {
   padding: 2px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #10b981 0%, #06b6d4 100%);
+  background: linear-gradient(135deg, var(--app-accent, #10b981) 0%, var(--app-accent-secondary, #06b6d4) 100%);
   box-shadow: 0 0 12px rgba(16, 185, 129, 0.3);
 }
 

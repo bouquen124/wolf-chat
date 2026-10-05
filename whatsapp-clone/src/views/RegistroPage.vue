@@ -217,7 +217,7 @@ const irLogin = () => {
 .glow-1 {
   width: 280px;
   height: 280px;
-  background: #10b981;
+  background: var(--app-accent, #10b981);
   top: -50px;
   right: -50px;
 }
@@ -225,7 +225,7 @@ const irLogin = () => {
 .glow-2 {
   width: 280px;
   height: 280px;
-  background: #06b6d4;
+  background: var(--app-accent-secondary, #06b6d4);
   bottom: -50px;
   left: -50px;
 }
@@ -264,7 +264,7 @@ const irLogin = () => {
   width: 74px;
   height: 74px;
   border-radius: 22px;
-  background: linear-gradient(135deg, #10b981 0%, #06b6d4 100%);
+  background: linear-gradient(135deg, var(--app-accent, #10b981) 0%, var(--app-accent-secondary, #06b6d4) 100%);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -320,7 +320,7 @@ const irLogin = () => {
   --background: rgba(255, 255, 255, 0.04);
   --border-radius: 16px;
   --padding-start: 14px;
-  --highlight-color-focused: #10b981;
+  --highlight-color-focused: var(--app-accent, #10b981);
   border: 1px solid rgba(255, 255, 255, 0.06);
   transition: all 0.2s ease;
 }
@@ -333,14 +333,14 @@ const irLogin = () => {
 .custom-input {
   --color: #ffffff;
   --placeholder-color: #64748b;
-  --highlight-color-focused: #10b981;
+  --highlight-color-focused: var(--app-accent, #10b981);
   color: #ffffff;
 }
 
 /* ===== BOTONES ===== */
 .btn-primary-glow {
   margin-top: 8px;
-  --background: linear-gradient(135deg, #10b981 0%, #06b6d4 100%);
+  --background: linear-gradient(135deg, var(--app-accent, #10b981) 0%, var(--app-accent-secondary, #06b6d4) 100%);
   --color: #ffffff;
   --border-radius: 16px;
   --box-shadow: 0 8px 25px rgba(16, 185, 129, 0.35);

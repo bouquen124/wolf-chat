@@ -164,7 +164,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, ref } from "vue";
 import { useRouter } from "vue-router";
 import {
   IonPage,
@@ -181,6 +181,8 @@ import {
   IonButton,
   IonTextarea,
   IonIcon,
+  onIonViewDidLeave,
+  onIonViewWillEnter,
 } from "@ionic/vue";
 import { cameraOutline, createOutline } from "ionicons/icons";
 
@@ -222,6 +224,8 @@ const mostrarModal = ref(false);
 const contenidoHistoria = ref("");
 const publicando = ref(false);
 const entradaArchivo = ref<HTMLInputElement | null>(null);
+let intervaloActualizacion: ReturnType<typeof setInterval> | null = null;
+let cargandoHistorias = false;
 
 // Agrupar historias de otros usuarios (FILTRANDO MI PROPIO USUARIO)
 const historiasPorUsuario = computed(() => {
@@ -381,10 +385,15 @@ const cargarHistoriasOtros = async () => {
 };
 
 const cargarTodo = async () => {
-  // Primero cargamos mis historias para asegurar tener miUsuarioId
-  await cargarMisHistorias();
-  // Luego cargamos las demás con el filtro aplicado
-  await cargarHistoriasOtros();
+  if (cargandoHistorias) return;
+  cargandoHistorias = true;
+  try {
+    // Primero mis historias para obtener mi usuario_id; después las de contactos.
+    await cargarMisHistorias();
+    await cargarHistoriasOtros();
+  } finally {
+    cargandoHistorias = false;
+  }
 };
 
 const abrirMiHistoria = () => {
@@ -520,8 +529,19 @@ const publicarHistoria = async () => {
   }
 };
 
-onMounted(() => {
+onIonViewWillEnter(() => {
   cargarTodo();
+  // Actualiza estados nuevos y marcas de visto sin recargar manualmente.
+  if (!intervaloActualizacion) {
+    intervaloActualizacion = setInterval(cargarTodo, 1000);
+  }
+});
+
+onIonViewDidLeave(() => {
+  if (intervaloActualizacion) {
+    clearInterval(intervaloActualizacion);
+    intervaloActualizacion = null;
+  }
 });
 </script>
 
@@ -576,13 +596,13 @@ ion-content {
 .glow-emerald {
   top: 70px;
   left: -120px;
-  background: #10b981;
+  background: var(--app-accent, #10b981);
 }
 
 .glow-cyan {
   top: 330px;
   right: -130px;
-  background: #06b6d4;
+  background: var(--app-accent-secondary, #06b6d4);
 }
 
 .mi-historia-list {
@@ -632,7 +652,7 @@ ion-content {
 }
 
 .mi-avatar.con-historias {
-  background: linear-gradient(135deg, #10b981, #06b6d4);
+  background: linear-gradient(135deg, var(--app-accent, #10b981), var(--app-accent-secondary, #06b6d4));
   box-shadow: 0 0 16px rgba(16, 185, 129, 0.3);
 }
 
@@ -651,7 +671,7 @@ ion-content {
   width: 22px;
   height: 22px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #10b981, #06b6d4);
+  background: linear-gradient(135deg, var(--app-accent, #10b981), var(--app-accent-secondary, #06b6d4));
   color: #ffffff;
   border: 2px solid #090d16;
   display: flex;
@@ -694,13 +714,13 @@ ion-content {
 }
 
 .btn-ver {
-  --color: #10b981;
+  --color: var(--app-accent, #10b981);
   font-weight: 600;
   font-size: 13px;
 }
 
 .btn-accion {
-  --color: #10b981;
+  --color: var(--app-accent, #10b981);
   width: 42px;
   height: 42px;
   --border-radius: 50%;
@@ -712,7 +732,7 @@ ion-content {
 }
 
 .btn-crear {
-  --background: linear-gradient(135deg, #10b981, #06b6d4);
+  --background: linear-gradient(135deg, var(--app-accent, #10b981), var(--app-accent-secondary, #06b6d4));
   --border-radius: 12px;
   --color: #ffffff;
   font-weight: 600;
@@ -772,7 +792,7 @@ ion-content {
 }
 
 .historia-avatar.no-vista {
-  background: linear-gradient(135deg, #10b981, #06b6d4);
+  background: linear-gradient(135deg, var(--app-accent, #10b981), var(--app-accent-secondary, #06b6d4));
   box-shadow: 0 0 18px rgba(16, 185, 129, 0.22);
 }
 
@@ -811,7 +831,7 @@ ion-content {
   --background: rgba(255, 255, 255, 0.045);
   --color: #ffffff;
   --border-color: transparent;
-  --highlight-color-focused: #10b981;
+  --highlight-color-focused: var(--app-accent, #10b981);
   border: 1px solid rgba(255, 255, 255, 0.055);
   border-radius: 20px;
   backdrop-filter: blur(18px);

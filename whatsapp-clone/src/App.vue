@@ -19,7 +19,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from "vue";
+import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import {
   IonApp,
   IonTabs,
@@ -28,6 +28,14 @@ import {
 } from "@ionic/vue";
 import { useRoute } from "vue-router";
 import TabBar from "./components/TabBar.vue";
+import {
+  aplicarPreferenciasApp,
+  guardarFondoEnCuenta,
+  guardarPreferenciasApp,
+  guardarTemaEnCuenta,
+  leerPreferenciasApp,
+  sincronizarPreferenciasCuenta,
+} from "./utils/appPreferences";
 
 const route = useRoute();
 
@@ -228,7 +236,49 @@ const botonesLlamada = [
   },
 ];
 
+const sincronizarPreferencias = async () => {
+  const token = localStorage.getItem("token");
+  if (!token) return;
+
+  try {
+    const remoto = await sincronizarPreferenciasCuenta(token);
+    if (remoto.configurada) {
+      guardarPreferenciasApp(remoto.preferencias);
+      return;
+    }
+
+    // Migra al perfil las preferencias locales que existían antes de sincronizar.
+    const local = leerPreferenciasApp();
+    let guardadas = await guardarTemaEnCuenta(token, local.themeId);
+    if (local.wallpaperUrl?.startsWith("data:image/")) {
+      const fondo = await fetch(local.wallpaperUrl).then((respuesta) => respuesta.blob());
+      guardadas = await guardarFondoEnCuenta(token, fondo);
+    }
+    guardarPreferenciasApp(guardadas);
+  } catch (error) {
+    console.error("No se pudieron sincronizar las preferencias de la cuenta:", error);
+  }
+};
+
+let tokenPreferenciasSincronizadas = "";
+watch(
+  () => route.path,
+  () => {
+    const token = localStorage.getItem("token") || "";
+    if (!token) {
+      tokenPreferenciasSincronizadas = "";
+      return;
+    }
+    if (token !== tokenPreferenciasSincronizadas) {
+      tokenPreferenciasSincronizadas = token;
+      void sincronizarPreferencias();
+    }
+  },
+  { immediate: true },
+);
+
 onMounted(() => {
+  aplicarPreferenciasApp();
   revisarRuta();
   revisarLlamadaEntrante();
 

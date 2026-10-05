@@ -506,13 +506,13 @@ ion-content {
 .glow-emerald {
   top: 70px;
   left: -120px;
-  background: #10b981;
+  background: var(--app-accent, #10b981);
 }
 
 .glow-cyan {
   top: 280px;
   right: -130px;
-  background: #06b6d4;
+  background: var(--app-accent-secondary, #06b6d4);
 }
 
 .searchbar {
@@ -521,7 +521,7 @@ ion-content {
   --box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.07);
   --color: #ffffff;
   --placeholder-color: #7d8798;
-  --icon-color: #10b981;
+  --icon-color: var(--app-accent, #10b981);
   margin: 4px 0 18px;
   padding: 0;
 }
@@ -556,7 +556,7 @@ ion-content {
   padding: 2px;
   margin-right: 12px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #10b981, #06b6d4);
+  background: linear-gradient(135deg, var(--app-accent, #10b981), var(--app-accent-secondary, #06b6d4));
   box-shadow: 0 0 16px rgba(16, 185, 129, 0.18);
 }
 
@@ -583,7 +583,7 @@ ion-content {
 }
 
 .grupo-card p strong {
-  color: #10b981;
+  color: var(--app-accent, #10b981);
   font-weight: 600;
 }
 
@@ -601,7 +601,7 @@ ion-content {
 }
 
 .grupo-info ion-badge {
-  --background: linear-gradient(135deg, #10b981, #06b6d4);
+  --background: linear-gradient(135deg, var(--app-accent, #10b981), var(--app-accent-secondary, #06b6d4));
   --color: #ffffff;
   min-width: 22px;
   height: 22px;
@@ -620,7 +620,7 @@ ion-fab {
 }
 
 .fab-neon {
-  --background: linear-gradient(135deg, #10b981, #06b6d4);
+  --background: linear-gradient(135deg, var(--app-accent, #10b981), var(--app-accent-secondary, #06b6d4));
   --background-activated: linear-gradient(135deg, #059669, #0891b2);
   --color: #ffffff;
   --box-shadow: 0 8px 28px rgba(16, 185, 129, 0.32);
@@ -655,7 +655,7 @@ ion-fab {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #10b981, #06b6d4);
+  background: linear-gradient(135deg, var(--app-accent, #10b981), var(--app-accent-secondary, #06b6d4));
   box-shadow: 0 0 24px rgba(16, 185, 129, 0.25);
 }
 
@@ -668,7 +668,7 @@ ion-fab {
   --background: rgba(255, 255, 255, 0.045);
   --color: #ffffff;
   --border-color: rgba(255, 255, 255, 0.09);
-  --highlight-color: #10b981;
+  --highlight-color: var(--app-accent, #10b981);
   --border-radius: 16px;
   flex: 1;
 }
@@ -741,8 +741,8 @@ ion-fab {
 }
 
 .selector.seleccionado {
-  border-color: #10b981;
-  background: linear-gradient(135deg, #10b981, #06b6d4);
+  border-color: var(--app-accent, #10b981);
+  background: linear-gradient(135deg, var(--app-accent, #10b981), var(--app-accent-secondary, #06b6d4));
   box-shadow: 0 0 14px rgba(16, 185, 129, 0.28);
 }
 

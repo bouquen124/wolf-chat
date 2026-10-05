@@ -1,11 +1,21 @@
 <template>
   <ion-page class="historia-page">
-    ```
     <ion-header class="glass-header">
       <ion-toolbar>
         <ion-buttons slot="start">
           <ion-button class="boton-cerrar" @click="cerrarHistorias">
             <ion-icon :icon="closeOutline" />
+          </ion-button>
+        </ion-buttons>
+
+        <ion-buttons slot="end" v-if="historia.esMia">
+          <ion-button
+            class="boton-eliminar"
+            :disabled="eliminando"
+            aria-label="Eliminar historia"
+            @click="eliminarHistoriaActual"
+          >
+            <ion-icon :icon="trashOutline" />
           </ion-button>
         </ion-buttons>
 
@@ -69,9 +79,50 @@
         <button class="boton-siguiente" @click.stop="siguienteHistoria">
           <ion-icon :icon="chevronForwardOutline" />
         </button>
+
+        <button
+          v-if="historia.esMia"
+          class="boton-vistas"
+          @click.stop="abrirVistas"
+        >
+          <ion-icon :icon="eyeOutline" />
+          <span>{{ historia.total_vistas ?? 0 }} vistas</span>
+        </button>
       </div>
     </ion-content>
-    ```
+
+    <ion-modal
+      class="modal-vistas-sheet"
+      :is-open="mostrarVistas"
+      :initial-breakpoint="0.5"
+      :breakpoints="[0, 0.5, 0.85]"
+      :handle="true"
+      @didDismiss="cerrarVistas"
+    >
+      <ion-header class="glass-header">
+        <ion-toolbar>
+          <ion-buttons slot="start">
+            <ion-button @click="cerrarVistas">Cerrar</ion-button>
+          </ion-buttons>
+          <ion-title>Visto por</ion-title>
+        </ion-toolbar>
+      </ion-header>
+      <ion-content class="modal-vistas">
+        <div v-if="cargandoVistas" class="estado-vistas-vacio">Cargando...</div>
+        <ion-list v-else-if="vistas.length" class="lista-vistas">
+          <ion-item v-for="vista in vistas" :key="vista.id" lines="none">
+            <ion-avatar slot="start">
+              <img :src="vista.foto || avatarPredeterminado" :alt="vista.nombre" />
+            </ion-avatar>
+            <ion-label>
+              <h2>{{ `${vista.nombre || ""} ${vista.apellido || ""}`.trim() }}</h2>
+              <p>{{ vista.fecha_visto }}</p>
+            </ion-label>
+          </ion-item>
+        </ion-list>
+        <div v-else class="estado-vistas-vacio">Todavía nadie ha visto esta historia.</div>
+      </ion-content>
+    </ion-modal>
   </ion-page>
 </template>
 
@@ -90,12 +141,19 @@ import {
   IonAvatar,
   IonTitle,
   IonContent,
+  IonModal,
+  IonList,
+  IonItem,
+  IonLabel,
+  alertController,
 } from "@ionic/vue";
 
 import {
   closeOutline,
   chevronBackOutline,
   chevronForwardOutline,
+  eyeOutline,
+  trashOutline,
 } from "ionicons/icons";
 
 const route = useRoute();
@@ -103,6 +161,11 @@ const route = useRoute();
 const router = useRouter();
 
 const historias = ref<any[]>([]);
+const vistas = ref<any[]>([]);
+const mostrarVistas = ref(false);
+const cargandoVistas = ref(false);
+const eliminando = ref(false);
+const avatarPredeterminado = "https://i.pravatar.cc/150?img=12";
 
 const token = localStorage.getItem("token") || "";
 
@@ -170,7 +233,7 @@ const cargarHistorias = async () => {
 
       nombre: `${estado.nombre || ""} ${estado.apellido || ""}`.trim(),
 
-      avatar: estado.foto || "https://i.pravatar.cc/150?img=12",
+      avatar: estado.foto || avatarPredeterminado,
 
       tipo: estado.tipo,
 
@@ -204,13 +267,14 @@ const cargarHistorias = async () => {
           id: Number(estado.id),
           usuario_id: Number(estado.usuario_id),
           nombre: `${estado.nombre || ""} ${estado.apellido || ""}`.trim(),
-          avatar: estado.foto || "https://i.pravatar.cc/150?img=12",
+          avatar: estado.foto || avatarPredeterminado,
           tipo: estado.tipo,
           contenido: estado.contenido || "",
           archivo: estado.ruta || estado.archivo || "",
           archivo_id: estado.archivo_id,
           visto: 0,
           esMia: true,
+          total_vistas: Number(estado.total_vistas) || 0,
           fecha_creacion: estado.fecha_creacion,
           fecha_expiracion: estado.fecha_expiracion,
         }))
@@ -227,6 +291,113 @@ const cargarHistorias = async () => {
     console.error("Error al cargar historias:", error);
 
     historias.value = [];
+  }
+};
+
+const abrirVistas = async () => {
+  if (!historia.value.esMia || !historia.value.id || cargandoVistas.value) return;
+
+  pausada.value = true;
+  mostrarVistas.value = true;
+  cargandoVistas.value = true;
+  vistas.value = [];
+
+  try {
+    const formData = new URLSearchParams();
+    formData.append("token", token);
+    formData.append("estado_id", String(historia.value.id));
+
+    const respuesta = await fetch(
+      "http://localhost/new%20app/api/controladores/estados_controlador.php?task=obtenerVistas",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: formData.toString(),
+      },
+    );
+    const data = await respuesta.json();
+    if (!data.ok) throw new Error(data.error || "No se pudieron cargar las vistas.");
+    vistas.value = Array.isArray(data.vistas) ? data.vistas : [];
+  } catch (error: any) {
+    console.error("Error al cargar quién vio la historia:", error);
+    window.alert(error.message || "No se pudieron cargar las vistas.");
+    cerrarVistas();
+  } finally {
+    cargandoVistas.value = false;
+  }
+};
+
+const cerrarVistas = () => {
+  mostrarVistas.value = false;
+  pausada.value = false;
+};
+
+const eliminarHistoriaActual = async () => {
+  if (!historia.value.esMia || !historia.value.id || eliminando.value) return;
+
+  const confirmacion = await alertController.create({
+    mode: "ios",
+    header: "Eliminar historia",
+    message: "¿Seguro que quieres eliminar esta historia?",
+    buttons: [
+      { text: "Cancelar", role: "cancel" },
+      { text: "Eliminar", role: "destructive" },
+    ],
+  });
+  await confirmacion.present();
+  const { role } = await confirmacion.onDidDismiss();
+  if (role !== "destructive") return;
+
+  eliminando.value = true;
+  const idEliminado = historia.value.id;
+  const indiceEliminado = indiceActual.value;
+
+  try {
+    const formData = new URLSearchParams();
+    formData.append("token", token);
+    formData.append("estado_id", String(idEliminado));
+
+    const respuesta = await fetch(
+      "http://localhost/new%20app/api/controladores/estados_controlador.php?task=eliminarEstado",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: formData.toString(),
+      },
+    );
+    const data = await respuesta.json();
+    if (!data.ok) throw new Error(data.error || "No se pudo eliminar la historia.");
+
+    detenerProgreso();
+    const restantes = historias.value.filter((item) => item.id !== idEliminado);
+    historias.value = restantes;
+
+    const alerta = await alertController.create({
+      mode: "ios",
+      header: "Historia eliminada",
+      message: "La historia se eliminó correctamente.",
+      buttons: ["Aceptar"],
+    });
+    await alerta.present();
+    await alerta.onDidDismiss();
+
+    if (restantes.length) {
+      const siguiente = restantes[Math.min(indiceEliminado, restantes.length - 1)];
+      await router.replace(`/historia/${siguiente.id}`);
+    } else {
+      await router.replace("/historias");
+    }
+  } catch (error: any) {
+    console.error("Error al eliminar historia:", error);
+    const alerta = await alertController.create({
+      mode: "ios",
+      header: "No se pudo eliminar",
+      message: error.message || "Inténtalo de nuevo.",
+      buttons: ["Aceptar"],
+    });
+    await alerta.present();
+  } finally {
+    eliminando.value = false;
   }
 };
 
@@ -400,7 +571,7 @@ onUnmounted(() => {
   margin-left: 6px;
   margin-right: 8px;
   padding: 2px;
-  background: linear-gradient(135deg, #10b981, #06b6d4);
+  background: linear-gradient(135deg, var(--app-accent, #10b981), var(--app-accent-secondary, #06b6d4));
   box-shadow: 0 0 16px rgba(16, 185, 129, 0.25);
 }
 
@@ -422,6 +593,14 @@ onUnmounted(() => {
 
 .boton-cerrar ion-icon {
   font-size: 28px;
+}
+
+.boton-eliminar {
+  --color: #fff;
+}
+
+.boton-eliminar ion-icon {
+  font-size: 21px;
 }
 
 .historia-content {
@@ -454,13 +633,13 @@ onUnmounted(() => {
 .glow-emerald {
   top: -120px;
   left: -140px;
-  background: #10b981;
+  background: var(--app-accent, #10b981);
 }
 
 .glow-cyan {
   bottom: -120px;
   right: -140px;
-  background: #06b6d4;
+  background: var(--app-accent-secondary, #06b6d4);
 }
 
 .zona-historia {
@@ -557,7 +736,7 @@ onUnmounted(() => {
 .progreso-activo {
   width: 0;
   height: 100%;
-  background: linear-gradient(90deg, #10b981, #06b6d4);
+  background: linear-gradient(90deg, var(--app-accent, #10b981), var(--app-accent-secondary, #06b6d4));
   border-radius: 10px;
   box-shadow: 0 0 8px rgba(16, 185, 129, 0.45);
 }
@@ -613,5 +792,65 @@ onUnmounted(() => {
 .boton-anterior ion-icon,
 .boton-siguiente ion-icon {
   font-size: 27px;
+}
+
+.boton-vistas {
+  position: absolute;
+  z-index: 16;
+  bottom: 22px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 22px;
+  color: #fff;
+  background: rgba(9, 13, 22, 0.76);
+  font-size: 14px;
+  backdrop-filter: blur(12px);
+}
+
+.boton-vistas ion-icon {
+  font-size: 20px;
+}
+
+.modal-vistas {
+  --background: #090d16;
+}
+
+.lista-vistas {
+  background: transparent;
+  padding: 8px 12px;
+}
+
+.lista-vistas ion-item {
+  --background: rgba(255, 255, 255, 0.045);
+  --color: #fff;
+  --border-radius: 14px;
+  margin-bottom: 8px;
+}
+
+.lista-vistas ion-avatar {
+  width: 44px;
+  height: 44px;
+}
+
+.lista-vistas h2 {
+  color: #fff;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.lista-vistas p,
+.estado-vistas-vacio {
+  color: #aab3c1;
+  font-size: 13px;
+}
+
+.estado-vistas-vacio {
+  padding: 28px 18px;
+  text-align: center;
 }
 </style>

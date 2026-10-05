@@ -64,7 +64,7 @@ import {
 .custom-tab-button {
   --background: transparent;
   --color: #64748b;
-  --color-selected: #10b981;
+  --color-selected: var(--app-accent, #10b981);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
 }
@@ -86,12 +86,12 @@ import {
 
 /* ===== PESTAÑA ACTIVA (SELECCIONADA) ===== */
 .custom-tab-button.tab-selected {
-  --color: #10b981;
+  --color: var(--app-accent, #10b981);
 }
 
 .custom-tab-button.tab-selected ion-icon {
   transform: translateY(-2px) scale(1.15);
-  color: #10b981;
+  color: var(--app-accent, #10b981);
   filter: drop-shadow(0 0 8px rgba(16, 185, 129, 0.6));
 }
 
@@ -107,7 +107,7 @@ import {
   top: 0;
   width: 26px;
   height: 3px;
-  background: linear-gradient(90deg, #10b981 0%, #06b6d4 100%);
+  background: linear-gradient(90deg, var(--app-accent, #10b981) 0%, var(--app-accent-secondary, #06b6d4) 100%);
   border-radius: 0 0 4px 4px;
   box-shadow: 0 2px 10px rgba(16, 185, 129, 0.8);
 }
