@@ -6,13 +6,25 @@
           <ion-back-button default-href="/chats" />
         </ion-buttons>
 
-        <ion-avatar slot="start" class="avatar-header">
-          <div class="avatar-ring">
-            <img :src="contacto.avatar" />
-          </div>
-        </ion-avatar>
-
-        <ion-title class="header-title">{{ contacto.nombre }}</ion-title>
+        <button
+          slot="start"
+          class="chat-header-perfil"
+          aria-label="Ver perfil del contacto"
+          @click="abrirPerfilContacto"
+        >
+          <ion-avatar class="avatar-header">
+            <div class="avatar-ring">
+              <img v-if="contacto.avatar" :src="contacto.avatar" />
+            </div>
+          </ion-avatar>
+          <span class="header-titulos">
+            <span class="header-title">{{ contacto.nombre }}</span>
+            <small v-if="contacto.enLinea" class="presencia-header presencia-header-online">En línea</small>
+            <small v-else-if="contacto.ultimaConexion" class="presencia-header">
+              Últ. vez {{ formatearUltimaConexion(contacto.ultimaConexion) }}
+            </small>
+          </span>
+        </button>
 
         <ion-button
           v-if="contacto.id && !llamadaActiva"
@@ -35,6 +47,12 @@
         </ion-button>
       </ion-toolbar>
     </ion-header>
+
+    <PerfilContactoModal
+      :visible="mostrarPerfilContacto"
+      :perfil="perfilContacto"
+      @cerrar="mostrarPerfilContacto = false"
+    />
 
     <ion-content ref="contenido" class="chat-content" :fullscreen="true">
       <div class="ambient-glow glow-emerald"></div>
@@ -81,7 +99,7 @@
       <div class="llamada-info">
         <div class="avatar-ring llamada-avatar-ring">
           <ion-avatar class="avatar-llamada">
-            <img :src="contacto.avatar" />
+            <img v-if="contacto.avatar" :src="contacto.avatar" />
           </ion-avatar>
         </div>
 
@@ -142,7 +160,7 @@
 </template>
 
 <script setup lang="ts">
-import { nextTick, onUnmounted, ref, watch } from "vue";
+import { computed, nextTick, onUnmounted, ref, watch } from "vue";
 import { useRoute } from "vue-router";
 import {
   IonPage,
@@ -151,7 +169,6 @@ import {
   IonButtons,
   IonBackButton,
   IonAvatar,
-  IonTitle,
   IonContent,
   IonInput,
   IonButton,
@@ -161,6 +178,7 @@ import {
   onIonViewWillEnter,
 } from "@ionic/vue";
 import { sendOutline, callOutline } from "ionicons/icons";
+import PerfilContactoModal from "../components/PerfilContactoModal.vue";
 
 interface Mensaje {
   id: number;
@@ -179,6 +197,10 @@ interface Contacto {
   nombre: string;
   apellido: string;
   foto: string | null;
+  descripcion?: string | null;
+  telefono?: string | null;
+  ultima_conexion?: string | null;
+  en_linea?: boolean;
 }
 
 interface ContactoLista {
@@ -234,8 +256,27 @@ let cargandoMensajes = false;
 const contacto = ref({
   id: 0,
   nombre: "Chat",
-  avatar: "https://i.pravatar.cc/150?img=12",
+  avatar: "",
+  descripcion: "",
+  telefono: "",
+  ultimaConexion: null as string | null,
+  enLinea: false,
 });
+const mostrarPerfilContacto = ref(false);
+const formatearUltimaConexion = (valor: string) => {
+  const fecha = new Date(valor.replace(" ", "T"));
+  if (Number.isNaN(fecha.getTime())) return valor;
+  return new Intl.DateTimeFormat("es-MX", { dateStyle: "short", timeStyle: "short" }).format(fecha);
+};
+const perfilContacto = computed(() => ({
+  id: contacto.value.id,
+  nombre: contacto.value.nombre,
+  foto: contacto.value.avatar || null,
+  descripcion: contacto.value.descripcion,
+  telefono: contacto.value.telefono,
+  ultima_conexion: contacto.value.ultimaConexion,
+  en_linea: contacto.value.enLinea,
+}));
 
 /* ===================== SCROLL ===================== */
 
@@ -378,13 +419,22 @@ const cargarContacto = async () => {
     contacto.value = {
       id: usuario.id,
       nombre: `${usuario.nombre || ""} ${usuario.apellido || ""}`.trim(),
-      avatar: usuario.foto || "https://i.pravatar.cc/150?img=12",
+      avatar: usuario.foto || "",
+      descripcion: usuario.descripcion || "",
+      telefono: usuario.telefono || "",
+      ultimaConexion: usuario.ultima_conexion || null,
+      enLinea: Boolean(usuario.en_linea),
     };
 
     await verificarContacto(usuario.id);
   } catch (error) {
     console.error("Error al cargar contacto:", error);
   }
+};
+
+const abrirPerfilContacto = async () => {
+  await cargarContacto();
+  mostrarPerfilContacto.value = true;
 };
 
 const agregarContacto = async () => {
@@ -1383,7 +1433,8 @@ const cargarConversacion = async () => {
   contacto.value = {
     id: 0,
     nombre: "Chat",
-    avatar: "https://i.pravatar.cc/150?img=12",
+    avatar: "",
+    descripcion: "",
   };
 
   mensajes.value = [];
@@ -1551,11 +1602,48 @@ onUnmounted(() => {
   padding-top: 6px;
 }
 
+.chat-header-perfil {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  padding: 0;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+
 .header-title {
+  overflow: hidden;
+  max-width: 46vw;
   color: #ffffff;
   font-size: 18px;
   font-weight: 800;
   letter-spacing: -0.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.header-titulos {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+}
+
+.presencia-header {
+  max-width: 48vw;
+  overflow: hidden;
+  color: #94a3b8;
+  font-size: 11px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.presencia-header-online {
+  color: #34d399;
 }
 
 .header-action {

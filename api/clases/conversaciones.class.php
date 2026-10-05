@@ -30,6 +30,10 @@ class conversaciones
     {
         if ((int)$propietarioId === (int)$visualizadorId) return true;
 
+        $stmt = $this->pdo->prepare("SELECT ocultar_foto FROM privacidad_restricciones_contacto WHERE usuario_id = ? AND contacto_id = ? LIMIT 1");
+        $stmt->execute([$propietarioId, $visualizadorId]);
+        if ((int)$stmt->fetchColumn() === 1) return false;
+
         $stmt = $this->pdo->prepare("SELECT foto_perfil FROM privacidad_usuario WHERE usuario_id = ? LIMIT 1");
         $stmt->execute([$propietarioId]);
         $visibilidad = $stmt->fetchColumn() ?: 'contactos';
@@ -39,6 +43,69 @@ class conversaciones
         $stmt = $this->pdo->prepare("SELECT 1 FROM contactos WHERE usuario_id = ? AND contacto_id = ? LIMIT 1");
         $stmt->execute([$visualizadorId, $propietarioId]);
         return (bool)$stmt->fetchColumn();
+    }
+
+    private function puedeVerDescripcion($propietarioId, $visualizadorId)
+    {
+        if ((int)$propietarioId === (int)$visualizadorId) return true;
+
+        $stmt = $this->pdo->prepare("SELECT ocultar_descripcion FROM privacidad_restricciones_contacto WHERE usuario_id = ? AND contacto_id = ? LIMIT 1");
+        $stmt->execute([$propietarioId, $visualizadorId]);
+        if ((int)$stmt->fetchColumn() === 1) return false;
+
+        $stmt = $this->pdo->prepare("SELECT descripcion FROM privacidad_usuario WHERE usuario_id = ? LIMIT 1");
+        $stmt->execute([$propietarioId]);
+        $visibilidad = $stmt->fetchColumn() ?: 'contactos';
+        if ($visibilidad === 'nadie') return false;
+        if ($visibilidad === 'todos') return true;
+
+        $stmt = $this->pdo->prepare(
+            "SELECT 1 FROM contactos WHERE usuario_id = ? AND contacto_id = ? LIMIT 1"
+        );
+        $stmt->execute([$visualizadorId, $propietarioId]);
+        return (bool)$stmt->fetchColumn();
+    }
+
+    private function obtenerPresenciaVisible($propietarioId, $visualizadorId)
+    {
+        if ((int)$propietarioId !== (int)$visualizadorId) {
+            $stmt = $this->pdo->prepare("SELECT ocultar_ultima_conexion FROM privacidad_restricciones_contacto WHERE usuario_id = ? AND contacto_id = ? LIMIT 1");
+            $stmt->execute([$propietarioId, $visualizadorId]);
+            if ((int)$stmt->fetchColumn() === 1) return [null, false];
+
+            $stmt = $this->pdo->prepare("SELECT ultima_conexion FROM privacidad_usuario WHERE usuario_id = ? LIMIT 1");
+            $stmt->execute([$propietarioId]);
+            $visibilidad = $stmt->fetchColumn() ?: 'contactos';
+            if ($visibilidad === 'nadie') return [null, false];
+            if ($visibilidad === 'contactos') {
+                $stmt = $this->pdo->prepare("SELECT 1 FROM contactos WHERE usuario_id = ? AND contacto_id = ? LIMIT 1");
+                $stmt->execute([$visualizadorId, $propietarioId]);
+                if (!$stmt->fetchColumn()) return [null, false];
+            }
+        }
+
+        $stmt = $this->pdo->prepare("SELECT ultima_actividad FROM usuario_presencia WHERE usuario_id = ? LIMIT 1");
+        $stmt->execute([$propietarioId]);
+        $ultimaActividad = $stmt->fetchColumn();
+        return [$ultimaActividad ?: null, true];
+    }
+
+    public function registrarActividad($p, $g)
+    {
+        header('Content-Type: application/json; charset=utf-8');
+        $usuarioId = $this->validarSesion($p['token'] ?? '');
+        if (!$usuarioId) {
+            http_response_code(401);
+            print json_encode(['ok' => false, 'error' => 'Sesión no válida'], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+
+        $stmt = $this->pdo->prepare(
+            "INSERT INTO usuario_presencia (usuario_id, ultima_actividad) VALUES (?, NOW())
+             ON DUPLICATE KEY UPDATE ultima_actividad = NOW()"
+        );
+        $stmt->execute([$usuarioId]);
+        print json_encode(['ok' => true], JSON_UNESCAPED_UNICODE);
     }
 
     public function crearConversacion($p, $g)
@@ -290,7 +357,9 @@ class conversaciones
                 u.id,
                 u.nombre,
                 u.apellido,
-                u.foto
+                u.foto,
+                u.descripcion,
+                u.telefono
             FROM conversacion_usuarios cu
             INNER JOIN usuarios u
                 ON u.id = cu.usuario_id
@@ -328,6 +397,13 @@ class conversaciones
         if (!$this->puedeVerFotoPerfil($contacto['id'], $usuarioId)) {
             $contacto['foto'] = null;
         }
+        if (!$this->puedeVerDescripcion($contacto['id'], $usuarioId)) {
+            $contacto['descripcion'] = null;
+        }
+        [$ultimaActividad, $permitirPresencia] = $this->obtenerPresenciaVisible($contacto['id'], $usuarioId);
+        $contacto['ultima_conexion'] = $permitirPresencia ? $ultimaActividad : null;
+        $contacto['en_linea'] = $permitirPresencia && $ultimaActividad
+            ? (strtotime($ultimaActividad) >= time() - 45) : false;
 
         print json_encode([
             'ok' => true,
@@ -706,6 +782,7 @@ class conversaciones
                 u.nombre,
                 u.apellido,
                 u.foto,
+                u.descripcion,
                 cu.rol
             FROM conversacion_usuarios cu
             INNER JOIN usuarios u
@@ -727,6 +804,13 @@ class conversaciones
             if (!$this->puedeVerFotoPerfil($integrante['id'], $usuarioId)) {
                 $integrante['foto'] = null;
             }
+            if (!$this->puedeVerDescripcion($integrante['id'], $usuarioId)) {
+                $integrante['descripcion'] = null;
+            }
+            [$ultimaActividad, $permitirPresencia] = $this->obtenerPresenciaVisible($integrante['id'], $usuarioId);
+            $integrante['ultima_conexion'] = $permitirPresencia ? $ultimaActividad : null;
+            $integrante['en_linea'] = $permitirPresencia && $ultimaActividad
+                ? (strtotime($ultimaActividad) >= time() - 45) : false;
         }
         unset($integrante);
 

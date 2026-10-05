@@ -163,13 +163,17 @@ class contactos
                     WHEN COALESCE(p.foto_perfil, 'contactos') = 'todos'
                       OR (COALESCE(p.foto_perfil, 'contactos') = 'contactos' AND EXISTS (
                           SELECT 1 FROM contactos c2 WHERE c2.usuario_id = u.id AND c2.contacto_id = c.usuario_id
-                      )) THEN u.foto ELSE NULL
+                      )) THEN CASE WHEN EXISTS (
+                          SELECT 1 FROM privacidad_restricciones_contacto prf WHERE prf.usuario_id = u.id AND prf.contacto_id = c.usuario_id AND prf.ocultar_foto = 1
+                      ) THEN NULL ELSE u.foto END ELSE NULL
                 END AS foto,
                 CASE
                     WHEN COALESCE(p.descripcion, 'contactos') = 'todos'
                       OR (COALESCE(p.descripcion, 'contactos') = 'contactos' AND EXISTS (
                           SELECT 1 FROM contactos c3 WHERE c3.usuario_id = u.id AND c3.contacto_id = c.usuario_id
-                      )) THEN u.descripcion ELSE NULL
+                      )) THEN CASE WHEN EXISTS (
+                          SELECT 1 FROM privacidad_restricciones_contacto prd WHERE prd.usuario_id = u.id AND prd.contacto_id = c.usuario_id AND prd.ocultar_descripcion = 1
+                      ) THEN NULL ELSE u.descripcion END ELSE NULL
                 END AS descripcion
             FROM contactos c
             INNER JOIN usuarios u

@@ -154,15 +154,26 @@ class usuarios
     private function privacidadDeUsuario($usuarioId)
     {
         $stmt = $this->conn->prepare(
-            "SELECT foto_perfil, descripcion, estados FROM privacidad_usuario WHERE usuario_id = :id LIMIT 1"
+            "SELECT foto_perfil, descripcion, estados, ultima_conexion FROM privacidad_usuario WHERE usuario_id = :id LIMIT 1"
         );
         $stmt->execute([':id' => $usuarioId]);
         $privacidad = $stmt->fetch();
-        return $privacidad ?: [
+        $resultado = $privacidad ?: [
             'foto_perfil' => 'contactos',
             'descripcion' => 'contactos',
             'estados' => 'contactos',
+            'ultima_conexion' => 'contactos',
         ];
+        $stmt = $this->conn->prepare(
+            "SELECT pe.contacto_id
+             FROM privacidad_estados_contactos pe
+             INNER JOIN contactos c ON c.usuario_id = pe.usuario_id AND c.contacto_id = pe.contacto_id
+             WHERE pe.usuario_id = :id
+             ORDER BY pe.contacto_id"
+        );
+        $stmt->execute([':id' => $usuarioId]);
+        $resultado['contactos_estados'] = array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
+        return $resultado;
     }
 
     function obtenerPrivacidad($p, $g)
@@ -195,34 +206,147 @@ class usuarios
         }
 
         $valoresPermitidos = ['todos', 'contactos', 'nadie'];
+        $valoresEstadosPermitidos = array_merge($valoresPermitidos, ['contactos_excepto', 'solo_seleccionados']);
         $foto = $p['foto_perfil'] ?? '';
         $descripcion = $p['descripcion'] ?? '';
         $estados = $p['estados'] ?? '';
+        $ultimaConexion = $p['ultima_conexion'] ?? '';
         if (!in_array($foto, $valoresPermitidos, true) ||
             !in_array($descripcion, $valoresPermitidos, true) ||
-            !in_array($estados, $valoresPermitidos, true)) {
+            !in_array($estados, $valoresEstadosPermitidos, true) ||
+            !in_array($ultimaConexion, $valoresPermitidos, true)) {
             http_response_code(400);
             print json_encode(['ok' => false, 'error' => 'Selecciona una opción válida para cada permiso'], JSON_UNESCAPED_UNICODE);
             return;
         }
 
-        try {
+        $contactosSeleccionados = json_decode($p['contactos_estados'] ?? '[]', true);
+        if (!is_array($contactosSeleccionados)) $contactosSeleccionados = [];
+        $contactosSeleccionados = array_values(array_unique(array_filter(array_map('intval', $contactosSeleccionados), function ($id) {
+            return $id > 0;
+        })));
+        if ($contactosSeleccionados) {
+            $marcas = implode(',', array_fill(0, count($contactosSeleccionados), '?'));
             $stmt = $this->conn->prepare(
-                "INSERT INTO privacidad_usuario (usuario_id, foto_perfil, descripcion, estados)
-                 VALUES (:id, :foto, :descripcion, :estados)
-                 ON DUPLICATE KEY UPDATE foto_perfil = VALUES(foto_perfil), descripcion = VALUES(descripcion), estados = VALUES(estados)"
+                "SELECT COUNT(*) FROM contactos WHERE usuario_id = ? AND contacto_id IN ({$marcas})"
+            );
+            $stmt->execute(array_merge([$usuarioId], $contactosSeleccionados));
+            if ((int)$stmt->fetchColumn() !== count($contactosSeleccionados)) {
+                http_response_code(400);
+                print json_encode(['ok' => false, 'error' => 'La lista solo puede incluir tus contactos'], JSON_UNESCAPED_UNICODE);
+                return;
+            }
+        }
+
+        try {
+            $this->conn->beginTransaction();
+            $stmt = $this->conn->prepare(
+                "INSERT INTO privacidad_usuario (usuario_id, foto_perfil, descripcion, estados, ultima_conexion)
+                 VALUES (:id, :foto, :descripcion, :estados, :ultima_conexion)
+                 ON DUPLICATE KEY UPDATE foto_perfil = VALUES(foto_perfil), descripcion = VALUES(descripcion), estados = VALUES(estados), ultima_conexion = VALUES(ultima_conexion)"
             );
             $stmt->execute([
                 ':id' => $usuarioId,
                 ':foto' => $foto,
                 ':descripcion' => $descripcion,
                 ':estados' => $estados,
+                ':ultima_conexion' => $ultimaConexion,
             ]);
+
+            $stmt = $this->conn->prepare("DELETE FROM privacidad_estados_contactos WHERE usuario_id = ?");
+            $stmt->execute([$usuarioId]);
+            if (in_array($estados, ['contactos_excepto', 'solo_seleccionados'], true)) {
+                $accion = $estados === 'contactos_excepto' ? 'excluir' : 'compartir';
+                $stmt = $this->conn->prepare(
+                    "INSERT INTO privacidad_estados_contactos (usuario_id, contacto_id, accion) VALUES (?, ?, ?)"
+                );
+                foreach ($contactosSeleccionados as $contactoId) {
+                    $stmt->execute([$usuarioId, $contactoId, $accion]);
+                }
+            }
+            $this->conn->commit();
             print json_encode(['ok' => true, 'privacidad' => $this->privacidadDeUsuario($usuarioId)], JSON_UNESCAPED_UNICODE);
         } catch (PDOException $e) {
+            if ($this->conn->inTransaction()) $this->conn->rollBack();
             error_log('guardarPrivacidad: ' . $e->getMessage());
             http_response_code(500);
             print json_encode(['ok' => false, 'error' => 'No se pudieron guardar los ajustes de privacidad'], JSON_UNESCAPED_UNICODE);
+        }
+    }
+
+    function obtenerRestriccionesContacto($p, $g)
+    {
+        header('Content-Type: application/json; charset=utf-8');
+        $usuarioId = $this->usuarioDeSesion($p['token'] ?? '');
+        $contactoId = (int)($p['contacto_id'] ?? 0);
+        if (!$usuarioId || $contactoId < 1 || $contactoId === (int)$usuarioId) {
+            http_response_code(400);
+            print json_encode(['ok' => false, 'error' => 'Datos incompletos o sesión no válida'], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+        try {
+            $stmt = $this->conn->prepare(
+                "SELECT ocultar_estados, ocultar_foto, ocultar_descripcion, ocultar_ultima_conexion
+                 FROM privacidad_restricciones_contacto WHERE usuario_id = ? AND contacto_id = ? LIMIT 1"
+            );
+            $stmt->execute([$usuarioId, $contactoId]);
+            $restricciones = $stmt->fetch(PDO::FETCH_ASSOC) ?: [
+                'ocultar_estados' => 0,
+                'ocultar_foto' => 0,
+                'ocultar_descripcion' => 0,
+                'ocultar_ultima_conexion' => 0,
+            ];
+            print json_encode(['ok' => true, 'restricciones' => $restricciones], JSON_UNESCAPED_UNICODE);
+        } catch (PDOException $e) {
+            error_log('obtenerRestriccionesContacto: ' . $e->getMessage());
+            http_response_code(500);
+            print json_encode(['ok' => false, 'error' => 'No se pudieron cargar las restricciones'], JSON_UNESCAPED_UNICODE);
+        }
+    }
+
+    function guardarRestriccionesContacto($p, $g)
+    {
+        header('Content-Type: application/json; charset=utf-8');
+        $usuarioId = $this->usuarioDeSesion($p['token'] ?? '');
+        $contactoId = (int)($p['contacto_id'] ?? 0);
+        if (!$usuarioId || $contactoId < 1 || $contactoId === (int)$usuarioId) {
+            http_response_code(400);
+            print json_encode(['ok' => false, 'error' => 'Datos incompletos o sesión no válida'], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+
+        $valores = [
+            'ocultar_estados' => (int)($p['ocultar_estados'] ?? 0),
+            'ocultar_foto' => (int)($p['ocultar_foto'] ?? 0),
+            'ocultar_descripcion' => (int)($p['ocultar_descripcion'] ?? 0),
+            'ocultar_ultima_conexion' => (int)($p['ocultar_ultima_conexion'] ?? 0),
+        ];
+        foreach ($valores as $valor) {
+            if (!in_array($valor, [0, 1], true)) {
+                http_response_code(400);
+                print json_encode(['ok' => false, 'error' => 'Restricción no válida'], JSON_UNESCAPED_UNICODE);
+                return;
+            }
+        }
+
+        try {
+            if (array_sum($valores) === 0) {
+                $stmt = $this->conn->prepare("DELETE FROM privacidad_restricciones_contacto WHERE usuario_id = ? AND contacto_id = ?");
+                $stmt->execute([$usuarioId, $contactoId]);
+            } else {
+                $stmt = $this->conn->prepare(
+                    "INSERT INTO privacidad_restricciones_contacto
+                     (usuario_id, contacto_id, ocultar_estados, ocultar_foto, ocultar_descripcion, ocultar_ultima_conexion)
+                     VALUES (?, ?, ?, ?, ?, ?)
+                     ON DUPLICATE KEY UPDATE ocultar_estados = VALUES(ocultar_estados), ocultar_foto = VALUES(ocultar_foto), ocultar_descripcion = VALUES(ocultar_descripcion), ocultar_ultima_conexion = VALUES(ocultar_ultima_conexion)"
+                );
+                $stmt->execute([$usuarioId, $contactoId, ...array_values($valores)]);
+            }
+            print json_encode(['ok' => true, 'restricciones' => $valores], JSON_UNESCAPED_UNICODE);
+        } catch (PDOException $e) {
+            error_log('guardarRestriccionesContacto: ' . $e->getMessage());
+            http_response_code(500);
+            print json_encode(['ok' => false, 'error' => 'No se pudieron guardar las restricciones'], JSON_UNESCAPED_UNICODE);
         }
     }
 

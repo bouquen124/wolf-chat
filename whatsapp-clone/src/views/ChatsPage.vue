@@ -37,7 +37,7 @@
             <div class="avatar-container" slot="start">
               <div class="avatar-ring">
                 <ion-avatar class="custom-avatar">
-                  <img :src="chat.avatar" alt="Avatar" />
+                  <img v-if="chat.avatar" :src="chat.avatar" alt="Avatar" />
                 </ion-avatar>
               </div>
             </div>
@@ -187,7 +187,7 @@ const cargarChats = async () => {
     chats.value = resultado.chats.map((chat: Chat) => ({
       ...chat,
       nombre: `${chat.nombre} ${chat.apellido}`.trim(),
-      avatar: chat.foto || "https://i.pravatar.cc/150?img=12",
+      avatar: chat.foto || "",
       hora: chat.fecha_envio ? formatearHora(chat.fecha_envio) : "",
     }));
   } catch (error) {

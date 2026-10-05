@@ -170,6 +170,42 @@ class mensajes
             ]);
 
             $sql = "
+                INSERT INTO notificaciones
+                (usuario_id, remitente_id, tipo, titulo, contenido, referencia_id)
+                SELECT
+                    md.usuario_id,
+                    actor.id,
+                    CASE WHEN c.tipo = 'grupo' THEN 'grupo' ELSE 'privado' END,
+                    CASE
+                        WHEN c.tipo = 'grupo' THEN COALESCE(NULLIF(c.nombre, ''), 'Grupo')
+                        ELSE TRIM(CONCAT(actor.nombre, ' ', COALESCE(actor.apellido, '')))
+                    END,
+                    CASE
+                        WHEN c.tipo = 'grupo' THEN CONCAT(
+                            TRIM(CONCAT(actor.nombre, ' ', COALESCE(actor.apellido, ''))),
+                            ': ', LEFT(?, 400)
+                        )
+                        ELSE LEFT(?, 500)
+                    END,
+                    c.id
+                FROM mensaje_destinatarios md
+                INNER JOIN conversaciones c ON c.id = ?
+                INNER JOIN usuarios actor ON actor.id = ?
+                LEFT JOIN preferencias_notificaciones pn ON pn.usuario_id = md.usuario_id
+                WHERE md.mensaje_id = ?
+                    AND ((c.tipo = 'grupo' AND COALESCE(pn.grupos, 1) = 1)
+                      OR (c.tipo <> 'grupo' AND COALESCE(pn.privados, 1) = 1))
+            ";
+            $stmt = $this->pdo->prepare($sql);
+            $stmt->execute([
+                $mensaje,
+                $mensaje,
+                $conversacionId,
+                $usuarioId,
+                $mensajeId
+            ]);
+
+            $sql = "
                 UPDATE conversaciones
                 SET fecha_actualizacion = NOW()
                 WHERE id = ?

@@ -13,6 +13,11 @@ include_once("../config/database.php");
 include_once("../clases/conversaciones.class.php");
 
 switch ($_GET['task']) {
+    case "registrarActividad":
+        $reg = new conversaciones($pdo);
+        $reg->registrarActividad($_POST, $_GET);
+        break;
+
     case "crearConversacion":
 
         $reg = new conversaciones($pdo);

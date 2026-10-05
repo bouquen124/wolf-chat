@@ -42,10 +42,7 @@
           <div class="avatar-container">
             <div class="avatar-ring">
               <ion-avatar class="custom-avatar">
-                <img
-                  :src="usuario.foto || 'https://i.pravatar.cc/150?img=12'"
-                  alt="Avatar"
-                />
+                <img v-if="usuario.foto" :src="usuario.foto" alt="Avatar" />
               </ion-avatar>
             </div>
           </div>

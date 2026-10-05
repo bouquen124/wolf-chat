@@ -21,7 +21,7 @@
       button
     >
       <ion-avatar slot="start">
-        <img :src="chat.foto" :alt="chat.nombre" />
+        <img v-if="chat.foto" :src="chat.foto" :alt="chat.nombre" />
       </ion-avatar>
 
       <ion-label>
@@ -86,7 +86,7 @@ const chats = ref<Chat[]>([
   {
     id: 1,
     nombre: 'Juan',
-    foto: 'https://i.pravatar.cc/150?img=12',
+    foto: '',
     ultimoMensaje: '¿Qué onda bro?',
     hora: '14:32',
     noLeidos: 2
@@ -94,7 +94,7 @@ const chats = ref<Chat[]>([
   {
     id: 2,
     nombre: 'María',
-    foto: 'https://i.pravatar.cc/150?img=47',
+    foto: '',
     ultimoMensaje: 'Nos vemos mañana',
     hora: '13:18',
     noLeidos: 0
@@ -102,7 +102,7 @@ const chats = ref<Chat[]>([
   {
     id: 3,
     nombre: 'Pedro',
-    foto: 'https://i.pravatar.cc/150?img=33',
+    foto: '',
     ultimoMensaje: '👍',
     hora: '12:45',
     noLeidos: 5
@@ -110,7 +110,7 @@ const chats = ref<Chat[]>([
   {
     id: 4,
     nombre: 'Laura',
-    foto: 'https://i.pravatar.cc/150?img=44',
+    foto: '',
     ultimoMensaje: 'Ya llegué',
     hora: '11:20',
     noLeidos: 0

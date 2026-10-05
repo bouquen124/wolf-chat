@@ -81,7 +81,19 @@ class estados
     {
         if ((int)$propietarioId === (int)$visualizadorId) return true;
 
-        $campos = ['estados' => 'estados', 'foto_perfil' => 'foto_perfil', 'descripcion' => 'descripcion'];
+        $restriccion = [
+            'foto_perfil' => 'ocultar_foto',
+            'descripcion' => 'ocultar_descripcion',
+        ];
+        if (isset($restriccion[$campo])) {
+            $stmt = $this->pdo->prepare(
+                "SELECT {$restriccion[$campo]} FROM privacidad_restricciones_contacto WHERE usuario_id = ? AND contacto_id = ? LIMIT 1"
+            );
+            $stmt->execute([$propietarioId, $visualizadorId]);
+            if ((int)$stmt->fetchColumn() === 1) return false;
+        }
+
+        $campos = ['foto_perfil' => 'foto_perfil', 'descripcion' => 'descripcion'];
         if (!isset($campos[$campo])) return false;
         $stmt = $this->pdo->prepare("SELECT {$campos[$campo]} FROM privacidad_usuario WHERE usuario_id = ? LIMIT 1");
         $stmt->execute([$propietarioId]);
@@ -94,26 +106,28 @@ class estados
         $stmt->execute([$propietarioId, $visualizadorId]);
         $esContacto = (bool)$stmt->fetchColumn();
         if ($visibilidad === 'contactos' && !$esContacto) return false;
-
-        if ($campo === 'estados') {
-            if ($visibilidad === 'contactos') {
-                $stmt = $this->pdo->prepare(
-                    "SELECT 1 FROM contactos WHERE usuario_id = ? AND contacto_id = ? LIMIT 1"
-                );
-                $stmt->execute([$visualizadorId, $propietarioId]);
-                if (!$stmt->fetchColumn()) return false;
-            }
-
-            $stmt = $this->pdo->prepare(
-                "SELECT 1 FROM bloqueos
-                 WHERE (usuario_id = ? AND usuario_bloqueado_id = ?)
-                    OR (usuario_id = ? AND usuario_bloqueado_id = ?) LIMIT 1"
-            );
-            $stmt->execute([$visualizadorId, $propietarioId, $propietarioId, $visualizadorId]);
-            if ($stmt->fetchColumn()) return false;
-        }
-
         return true;
+    }
+
+    private function audienciaPermite($estadoId, $visualizadorId)
+    {
+        $stmt = $this->pdo->prepare("SELECT usuario_id FROM estados WHERE id = ? LIMIT 1");
+        $stmt->execute([$estadoId]);
+        $propietarioId = $stmt->fetchColumn();
+        if (!$propietarioId) return false;
+        if ((int)$propietarioId === (int)$visualizadorId) return true;
+
+        $stmt = $this->pdo->prepare(
+            "SELECT ocultar_estados FROM privacidad_restricciones_contacto WHERE usuario_id = ? AND contacto_id = ? LIMIT 1"
+        );
+        $stmt->execute([$propietarioId, $visualizadorId]);
+        if ((int)$stmt->fetchColumn() === 1) return false;
+
+        $stmt = $this->pdo->prepare(
+            "SELECT 1 FROM estado_audiencia WHERE estado_id = ? AND usuario_id = ? LIMIT 1"
+        );
+        $stmt->execute([$estadoId, $visualizadorId]);
+        return (bool)$stmt->fetchColumn();
     }
 
     private function urlRuta($ruta)
@@ -224,6 +238,50 @@ class estados
         ];
     }
 
+    private function destinatariosSegunPrivacidad($usuarioId)
+    {
+        $stmt = $this->pdo->prepare("SELECT estados FROM privacidad_usuario WHERE usuario_id = ? LIMIT 1");
+        $stmt->execute([$usuarioId]);
+        $modo = $stmt->fetchColumn() ?: 'contactos';
+
+        if ($modo === 'nadie') return [];
+
+        if ($modo === 'todos') {
+            $stmt = $this->pdo->prepare(
+                "SELECT u.id FROM usuarios u
+                 WHERE u.id <> ? AND u.estado = 'activo'
+                   AND NOT EXISTS (SELECT 1 FROM bloqueos b WHERE b.usuario_id = ? AND b.usuario_bloqueado_id = u.id)
+                   AND NOT EXISTS (SELECT 1 FROM bloqueos b WHERE b.usuario_id = u.id AND b.usuario_bloqueado_id = ?)"
+            );
+            $stmt->execute([$usuarioId, $usuarioId, $usuarioId]);
+            return array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
+        }
+
+        if ($modo === 'solo_seleccionados') {
+            $condicionSeleccion = "EXISTS (
+                SELECT 1 FROM privacidad_estados_contactos pe
+                WHERE pe.usuario_id = c.usuario_id AND pe.contacto_id = c.contacto_id AND pe.accion = 'compartir'
+            )";
+        } elseif ($modo === 'contactos_excepto') {
+            $condicionSeleccion = "NOT EXISTS (
+                SELECT 1 FROM privacidad_estados_contactos pe
+                WHERE pe.usuario_id = c.usuario_id AND pe.contacto_id = c.contacto_id AND pe.accion = 'excluir'
+            )";
+        } else {
+            $condicionSeleccion = '1 = 1';
+        }
+
+        $stmt = $this->pdo->prepare(
+            "SELECT c.contacto_id FROM contactos c
+             WHERE c.usuario_id = ? AND c.contacto_id <> ?
+               AND {$condicionSeleccion}
+               AND NOT EXISTS (SELECT 1 FROM bloqueos b WHERE b.usuario_id = c.usuario_id AND b.usuario_bloqueado_id = c.contacto_id)
+               AND NOT EXISTS (SELECT 1 FROM bloqueos b WHERE b.usuario_id = c.contacto_id AND b.usuario_bloqueado_id = c.usuario_id)"
+        );
+        $stmt->execute([$usuarioId, $usuarioId]);
+        return array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
+    }
+
     public function crearEstado($p, $g)
     {
         header('Content-Type: application/json; charset=utf-8');
@@ -287,41 +345,48 @@ class estados
             }
         }
 
-        $sql = "
-            INSERT INTO estados
-            (
-                usuario_id,
-                tipo,
-                contenido,
-                archivo_id,
-                fecha_creacion,
-                fecha_expiracion,
-                estado
-            )
-            VALUES
-            (
-                ?,
-                ?,
-                ?,
-                ?,
-                NOW(),
-                DATE_ADD(NOW(), INTERVAL 24 HOUR),
-                'activo'
-            )
-        ";
+        try {
+            $this->pdo->beginTransaction();
+            $sql = "
+                INSERT INTO estados
+                (usuario_id, tipo, contenido, archivo_id, fecha_creacion, fecha_expiracion, estado)
+                VALUES (?, ?, ?, ?, NOW(), DATE_ADD(NOW(), INTERVAL 24 HOUR), 'activo')
+            ";
+            $stmt = $this->pdo->prepare($sql);
+            $stmt->execute([$usuarioId, $tipo, $contenido ?: null, $archivoId]);
+            $estadoId = (int)$this->pdo->lastInsertId();
 
-        $stmt = $this->pdo->prepare($sql);
-        $stmt->execute([
-            $usuarioId,
-            $tipo,
-            $contenido ?: null,
-            $archivoId
-        ]);
+            $destinatarios = $this->destinatariosSegunPrivacidad($usuarioId);
+            if ($destinatarios) {
+                $stmtAudiencia = $this->pdo->prepare(
+                    "INSERT INTO estado_audiencia (estado_id, usuario_id) VALUES (?, ?)"
+                );
+                foreach ($destinatarios as $destinatarioId) {
+                    $stmtAudiencia->execute([$estadoId, $destinatarioId]);
+                }
 
-        print json_encode([
-            'ok' => true,
-            'estado_id' => (int)$this->pdo->lastInsertId()
-        ], JSON_UNESCAPED_UNICODE);
+                $stmtNotificaciones = $this->pdo->prepare(
+                    "INSERT INTO notificaciones
+                     (usuario_id, remitente_id, tipo, titulo, contenido, referencia_id)
+                     SELECT ea.usuario_id, actor.id, 'estado',
+                            TRIM(CONCAT(actor.nombre, ' ', COALESCE(actor.apellido, ''))),
+                            'publicó una nueva historia', ?
+                     FROM estado_audiencia ea
+                     INNER JOIN usuarios actor ON actor.id = ?
+                     LEFT JOIN preferencias_notificaciones pn ON pn.usuario_id = ea.usuario_id
+                     WHERE ea.estado_id = ? AND COALESCE(pn.estados, 1) = 1"
+                );
+                $stmtNotificaciones->execute([$estadoId, $usuarioId, $estadoId]);
+            }
+
+            $this->pdo->commit();
+            print json_encode(['ok' => true, 'estado_id' => $estadoId], JSON_UNESCAPED_UNICODE);
+        } catch (Throwable $e) {
+            if ($this->pdo->inTransaction()) $this->pdo->rollBack();
+            error_log('crearEstado: ' . $e->getMessage());
+            http_response_code(500);
+            print json_encode(['ok' => false, 'error' => 'No se pudo guardar el estado y su audiencia'], JSON_UNESCAPED_UNICODE);
+        }
     }
 
     public function obtenerMisEstados($p, $g)
@@ -382,6 +447,9 @@ class estados
         $stmt->execute([$usuarioId]);
 
         $resultado = $stmt->fetchAll();
+        $resultado = array_values(array_filter($resultado, function ($estado) use ($usuarioId) {
+            return $this->audienciaPermite($estado['id'], $usuarioId);
+        }));
 
         foreach ($resultado as &$estado) {
             $estado['id'] = (int)$estado['id'];
@@ -448,20 +516,11 @@ class estados
                 AND ev.usuario_id = ?
             LEFT JOIN archivos a
                 ON a.id = e.archivo_id
-            LEFT JOIN privacidad_usuario pu
-                ON pu.usuario_id = e.usuario_id
             WHERE
                 e.estado = 'activo'
                 AND e.fecha_expiracion > NOW()
                 AND e.usuario_id != ?
-                AND COALESCE(pu.estados, 'contactos') <> 'nadie'
-                AND (
-                    COALESCE(pu.estados, 'contactos') = 'todos'
-                    OR (
-                        EXISTS (SELECT 1 FROM contactos c WHERE c.usuario_id = ? AND c.contacto_id = e.usuario_id)
-                        AND EXISTS (SELECT 1 FROM contactos c2 WHERE c2.usuario_id = e.usuario_id AND c2.contacto_id = ?)
-                    )
-                )
+                AND EXISTS (SELECT 1 FROM estado_audiencia ea WHERE ea.estado_id = e.id AND ea.usuario_id = ?)
                 AND NOT EXISTS
                 (
                     SELECT 1
@@ -488,10 +547,12 @@ class estados
             $usuarioId,
             $usuarioId,
             $usuarioId,
-            $usuarioId
         ]);
 
         $resultado = $stmt->fetchAll();
+        $resultado = array_values(array_filter($resultado, function ($estado) use ($usuarioId) {
+            return $this->audienciaPermite($estado['id'], $usuarioId);
+        }));
 
         foreach ($resultado as &$estado) {
             $estado['id'] = (int)$estado['id'];
@@ -572,7 +633,7 @@ class estados
             return;
         }
 
-        if (!$this->privacidadPermite($estado['usuario_id'], $usuarioId, 'estados')) {
+        if (!$this->audienciaPermite($estado['id'], $usuarioId)) {
             print json_encode(['ok' => false, 'error' => 'No tienes acceso a este estado'], JSON_UNESCAPED_UNICODE);
             return;
         }
@@ -685,28 +746,22 @@ class estados
                     AND ev.usuario_id = ?
                 LEFT JOIN archivos a
                     ON a.id = e.archivo_id
-                LEFT JOIN privacidad_usuario pu
-                    ON pu.usuario_id = e.usuario_id
                 WHERE
                     e.usuario_id = ?
                     AND e.estado = 'activo'
                     AND e.fecha_expiracion > NOW()
-                    AND COALESCE(pu.estados, 'contactos') <> 'nadie'
-                    AND (
-                        COALESCE(pu.estados, 'contactos') = 'todos'
-                        OR (
-                            EXISTS (SELECT 1 FROM contactos c WHERE c.usuario_id = ? AND c.contacto_id = e.usuario_id)
-                            AND EXISTS (SELECT 1 FROM contactos c2 WHERE c2.usuario_id = e.usuario_id AND c2.contacto_id = ?)
-                        )
-                    )
+                    AND EXISTS (SELECT 1 FROM estado_audiencia ea WHERE ea.estado_id = e.id AND ea.usuario_id = ?)
                 ORDER BY e.fecha_creacion DESC
             ";
 
             $stmt = $this->pdo->prepare($sql);
-            $stmt->execute([$usuarioId, $usuarioIdParam, $usuarioId, $usuarioId]);
+            $stmt->execute([$usuarioId, $usuarioIdParam, $usuarioId]);
         }
 
         $resultado = $stmt->fetchAll();
+        $resultado = array_values(array_filter($resultado, function ($estado) use ($usuarioId) {
+            return $this->audienciaPermite($estado['id'], $usuarioId);
+        }));
 
         foreach ($resultado as &$estado) {
             $estado['id'] = (int)$estado['id'];
@@ -766,7 +821,7 @@ class estados
             return;
         }
 
-        if (!$this->privacidadPermite($propietarioId, $usuarioId, 'estados')) {
+        if (!$this->audienciaPermite($estadoId, $usuarioId)) {
             http_response_code(403);
             print json_encode(['ok' => false, 'error' => 'No tienes permiso para ver este estado'], JSON_UNESCAPED_UNICODE);
             return;

@@ -8,7 +8,7 @@
         <div class="header-contacto">
           <div class="avatar-ring-header">
             <ion-avatar class="avatar-header">
-              <img :src="grupo.foto || 'https://i.pravatar.cc/150?img=11'" />
+              <img v-if="grupo.foto" :src="grupo.foto" />
             </ion-avatar>
           </div>
           <ion-title>{{ grupo.nombre }}</ion-title>
@@ -60,13 +60,13 @@
           <ion-item
             v-for="integrante in integrantes"
             :key="integrante.id"
+            button
+            :detail="false"
             lines="none"
+            @click="abrirPerfilIntegrante(integrante)"
           >
             <ion-avatar slot="start">
-              <img
-                :src="integrante.foto || 'https://i.pravatar.cc/150?img=12'"
-                :alt="integrante.nombre"
-              />
+              <img v-if="integrante.foto" :src="integrante.foto" :alt="integrante.nombre" />
             </ion-avatar>
             <ion-label>
               <h2>
@@ -82,6 +82,12 @@
         </ion-list>
       </ion-content>
     </ion-modal>
+
+    <PerfilContactoModal
+      :visible="mostrarPerfilIntegrante"
+      :perfil="perfilIntegranteActual"
+      @cerrar="cerrarPerfilIntegrante"
+    />
 
     <ion-content ref="contenido" class="chat-content">
       <div class="glow-emerald"></div>
@@ -153,7 +159,7 @@
 </template>
 
 <script setup lang="ts">
-import { nextTick, onUnmounted, ref } from "vue";
+import { computed, nextTick, onUnmounted, ref } from "vue";
 import {
   IonPage,
   IonHeader,
@@ -178,6 +184,7 @@ import {
 } from "@ionic/vue";
 import { exitOutline, peopleOutline, sendOutline } from "ionicons/icons";
 import { useRoute, useRouter } from "vue-router";
+import PerfilContactoModal from "../components/PerfilContactoModal.vue";
 
 interface Grupo {
   conversacion_id: number;
@@ -202,6 +209,9 @@ interface Integrante {
   nombre: string;
   apellido: string | null;
   foto: string | null;
+  descripcion?: string | null;
+  ultima_conexion?: string | null;
+  en_linea?: boolean;
   rol: string;
 }
 
@@ -239,6 +249,21 @@ const mensajes = ref<Mensaje[]>([]);
 const enviando = ref(false);
 const integrantes = ref<Integrante[]>([]);
 const mostrarIntegrantes = ref(false);
+const mostrarPerfilIntegrante = ref(false);
+const integranteSeleccionado = ref<Integrante | null>(null);
+const perfilIntegranteActual = computed(() => {
+  const integrante = integranteSeleccionado.value;
+  if (!integrante) return null;
+  return {
+    id: integrante.id,
+    nombre: `${integrante.nombre || ""} ${integrante.apellido || ""}`.trim(),
+    foto: integrante.foto,
+    descripcion: integrante.descripcion,
+    ultima_conexion: integrante.ultima_conexion,
+    en_linea: integrante.en_linea,
+    rol: integrante.rol,
+  };
+});
 const cargandoIntegrantes = ref(false);
 const errorIntegrantes = ref("");
 
@@ -362,6 +387,16 @@ const abrirIntegrantes = async () => {
 
 const cerrarIntegrantes = () => {
   mostrarIntegrantes.value = false;
+};
+
+const abrirPerfilIntegrante = (integrante: Integrante) => {
+  integranteSeleccionado.value = integrante;
+  mostrarPerfilIntegrante.value = true;
+};
+
+const cerrarPerfilIntegrante = () => {
+  mostrarPerfilIntegrante.value = false;
+  integranteSeleccionado.value = null;
 };
 
 const salirDelGrupo = async () => {

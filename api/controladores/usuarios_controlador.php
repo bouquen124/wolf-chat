@@ -67,6 +67,18 @@ switch ($task) {
         $reg->guardarPrivacidad($_POST, $_GET);
         break;
 
+    case "obtenerRestriccionesContacto":
+        include_once("../clases/usuarios.class.php");
+        $reg = new usuarios();
+        $reg->obtenerRestriccionesContacto($_POST, $_GET);
+        break;
+
+    case "guardarRestriccionesContacto":
+        include_once("../clases/usuarios.class.php");
+        $reg = new usuarios();
+        $reg->guardarRestriccionesContacto($_POST, $_GET);
+        break;
+
     case "obtenerPreferencias":
         include_once("../clases/usuarios.class.php");
         $reg = new usuarios();

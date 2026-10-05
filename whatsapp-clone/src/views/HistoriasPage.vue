@@ -23,7 +23,7 @@
               <ion-avatar
                 :class="['mi-avatar', { 'con-historias': misHistorias.length }]"
               >
-                <img :src="miAvatar" alt="Mi Avatar" />
+                <img v-if="miAvatar" :src="miAvatar" alt="Mi Avatar" />
               </ion-avatar>
             </div>
 
@@ -79,7 +79,7 @@
               @click="abrirHistoria(historia)"
             >
               <div class="historia-avatar no-vista">
-                <img :src="historia.avatar" />
+                <img v-if="historia.avatar" :src="historia.avatar" />
               </div>
 
               <span>{{ historia.nombre }}</span>
@@ -98,7 +98,7 @@
               @click="abrirHistoria(historia)"
             >
               <div class="historia-avatar vista">
-                <img :src="historia.avatar" />
+                <img v-if="historia.avatar" :src="historia.avatar" />
               </div>
 
               <span>{{ historia.nombre }}</span>
@@ -191,7 +191,13 @@ const router = useRouter();
 const misHistorias = ref<any[]>([]);
 const historiasOtros = ref<any[]>([]);
 
-const miAvatar = ref("https://i.pravatar.cc/150?img=12");
+const miAvatar = ref((() => {
+  try {
+    return JSON.parse(localStorage.getItem("usuario") || "{}").foto || "";
+  } catch {
+    return "";
+  }
+})());
 const token = localStorage.getItem("token") || "";
 
 // Función inteligente para obtener el ID de usuario logueado desde localStorage
@@ -359,7 +365,7 @@ const cargarHistoriasOtros = async () => {
       id: Number(estado.id),
       usuario_id: Number(estado.usuario_id),
       nombre: `${estado.nombre || ""} ${estado.apellido || ""}`.trim(),
-      avatar: estado.foto || "https://i.pravatar.cc/150?img=12",
+      avatar: estado.foto || "",
       visto: Number(estado.visto) || 0,
       tipo: estado.tipo,
       contenido: estado.contenido || "",

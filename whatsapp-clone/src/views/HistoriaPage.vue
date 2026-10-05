@@ -20,7 +20,7 @@
         </ion-buttons>
 
         <ion-avatar class="avatar-header">
-          <img :src="historia.avatar" />
+          <img v-if="historia.avatar" :src="historia.avatar" />
         </ion-avatar>
 
         <ion-title>
@@ -112,7 +112,7 @@
         <ion-list v-else-if="vistas.length" class="lista-vistas">
           <ion-item v-for="vista in vistas" :key="vista.id" lines="none">
             <ion-avatar slot="start">
-              <img :src="vista.foto || avatarPredeterminado" :alt="vista.nombre" />
+              <img v-if="vista.foto" :src="vista.foto" :alt="vista.nombre" />
             </ion-avatar>
             <ion-label>
               <h2>{{ `${vista.nombre || ""} ${vista.apellido || ""}`.trim() }}</h2>
@@ -165,7 +165,6 @@ const vistas = ref<any[]>([]);
 const mostrarVistas = ref(false);
 const cargandoVistas = ref(false);
 const eliminando = ref(false);
-const avatarPredeterminado = "https://i.pravatar.cc/150?img=12";
 
 const token = localStorage.getItem("token") || "";
 
@@ -177,7 +176,7 @@ const historia = computed(() => {
       id: 0,
       usuario_id: 0,
       nombre: "",
-      avatar: "https://i.pravatar.cc/150?img=12",
+      avatar: "",
       tipo: "texto",
       contenido: "",
       archivo: "",
@@ -233,7 +232,7 @@ const cargarHistorias = async () => {
 
       nombre: `${estado.nombre || ""} ${estado.apellido || ""}`.trim(),
 
-      avatar: estado.foto || avatarPredeterminado,
+      avatar: estado.foto || "",
 
       tipo: estado.tipo,
 
@@ -267,7 +266,7 @@ const cargarHistorias = async () => {
           id: Number(estado.id),
           usuario_id: Number(estado.usuario_id),
           nombre: `${estado.nombre || ""} ${estado.apellido || ""}`.trim(),
-          avatar: estado.foto || avatarPredeterminado,
+          avatar: estado.foto || "",
           tipo: estado.tipo,
           contenido: estado.contenido || "",
           archivo: estado.ruta || estado.archivo || "",

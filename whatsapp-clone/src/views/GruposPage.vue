@@ -26,7 +26,7 @@
           >
             <div class="avatar-ring" slot="start">
               <ion-avatar>
-                <img :src="grupo.foto || 'https://i.pravatar.cc/150?img=12'" />
+                <img v-if="grupo.foto" :src="grupo.foto" />
               </ion-avatar>
             </div>
 
@@ -137,9 +137,7 @@
                 @click="alternarSeleccion(contacto.contacto_id)"
               >
                 <ion-avatar slot="start">
-                  <img
-                    :src="contacto.foto || 'https://i.pravatar.cc/150?img=12'"
-                  />
+                  <img v-if="contacto.foto" :src="contacto.foto" />
                 </ion-avatar>
 
                 <ion-label>

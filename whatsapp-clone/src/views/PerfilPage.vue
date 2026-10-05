@@ -12,7 +12,7 @@
           <div class="foto-container">
             <div class="foto-ring">
               <ion-avatar class="foto-perfil">
-                <img :src="usuario.avatar" :alt="nombreCompleto" />
+                <img v-if="usuario.avatar" :src="usuario.avatar" :alt="nombreCompleto" />
               </ion-avatar>
             </div>
 
@@ -62,14 +62,14 @@
           <span class="seccion-titulo">CUENTA</span>
 
           <ion-list class="lista-opciones">
-            <ion-item button lines="none" class="opcion">
+            <ion-item button lines="none" class="opcion" @click="editarNotificaciones">
               <div slot="start" class="icono-opcion">
                 <ion-icon :icon="notificationsOutline" />
               </div>
 
               <ion-label>
                 <h2>Notificaciones</h2>
-                <p>Sonidos, alertas y mensajes</p>
+                <p>{{ resumenNotificaciones }}</p>
               </ion-label>
 
               <ion-icon
@@ -86,7 +86,9 @@
 
               <ion-label>
                 <h2>Privacidad</h2>
-                <p>Elige quién ve tu foto, descripción e historias</p>
+                <p>✓ Foto: {{ etiquetaPrivacidad(privacidad.foto_perfil) }} · Info: {{ etiquetaPrivacidad(privacidad.descripcion) }}</p>
+                <p>✓ Historias: {{ etiquetaPrivacidad(privacidad.estados) }}</p>
+                <p>✓ Últ. conexión: {{ etiquetaPrivacidad(privacidad.ultima_conexion) }}</p>
               </ion-label>
 
               <ion-icon
@@ -245,11 +247,18 @@ interface UsuarioPerfil {
 interface PrivacidadPerfil {
   foto_perfil: "todos" | "contactos" | "nadie";
   descripcion: "todos" | "contactos" | "nadie";
-  estados: "todos" | "contactos" | "nadie";
+  estados: "todos" | "contactos" | "nadie" | "contactos_excepto" | "solo_seleccionados";
+  ultima_conexion: "todos" | "contactos" | "nadie";
+  contactos_estados: number[];
+}
+
+interface PreferenciasNotificaciones {
+  privados: boolean;
+  grupos: boolean;
+  estados: boolean;
 }
 
 const router = useRouter();
-const avatarPredeterminado = "https://i.pravatar.cc/300?img=12";
 const entradaFoto = ref<HTMLInputElement | null>(null);
 const entradaFondo = ref<HTMLInputElement | null>(null);
 const subiendoFoto = ref(false);
@@ -259,17 +268,43 @@ const usuario = ref({
   apellido: "",
   telefono: "",
   descripcion: "",
-  avatar: avatarPredeterminado,
+  avatar: "",
 });
 const privacidad = ref<PrivacidadPerfil>({
   foto_perfil: "contactos",
   descripcion: "contactos",
   estados: "contactos",
+  ultima_conexion: "contactos",
+  contactos_estados: [],
+});
+const preferenciasNotificaciones = ref<PreferenciasNotificaciones>({
+  privados: true,
+  grupos: true,
+  estados: true,
 });
 
 const nombreCompleto = computed(
   () => `${usuario.value.nombre} ${usuario.value.apellido}`.trim(),
 );
+const resumenNotificaciones = computed(() => {
+  const activos = [
+    preferenciasNotificaciones.value.privados ? "Privados" : "",
+    preferenciasNotificaciones.value.grupos ? "Grupos" : "",
+    preferenciasNotificaciones.value.estados ? "Historias" : "",
+  ].filter(Boolean);
+  return activos.length ? `Activadas: ${activos.join(", ")}` : "Notificaciones desactivadas";
+});
+
+const etiquetaPrivacidad = (valor: PrivacidadPerfil["foto_perfil"] | PrivacidadPerfil["estados"]) => {
+  const etiquetas: Record<string, string> = {
+    todos: "Todos",
+    contactos: "Mis contactos",
+    nadie: "Nadie",
+    contactos_excepto: "Contactos excepto seleccionados",
+    solo_seleccionados: "Solo seleccionados",
+  };
+  return etiquetas[valor] || "Cargando…";
+};
 
 const mostrarAlerta = async (header: string, message: string) => {
   const alerta = await alertController.create({
@@ -289,7 +324,7 @@ const guardarUsuarioLocal = (usuarioApi: UsuarioPerfil) => {
     apellido: usuarioApi.apellido || "",
     telefono: usuarioApi.telefono || "",
     descripcion: usuarioApi.descripcion || "",
-    avatar: usuarioApi.foto || avatarPredeterminado,
+    avatar: usuarioApi.foto || "",
   };
 };
 
@@ -329,10 +364,91 @@ const cargarPrivacidad = async () => {
   }
 };
 
+const cargarPreferenciasNotificaciones = async () => {
+  const token = localStorage.getItem("token") || "";
+  if (!token) return;
+  try {
+    const datos = new URLSearchParams({ token });
+    const respuesta = await fetch(
+      "http://localhost/new%20app/api/controladores/notificaciones_controlador.php?task=obtenerPreferencias",
+      { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: datos.toString(), cache: "no-store" },
+    );
+    const resultado = await respuesta.json();
+    if (resultado.ok && resultado.preferencias) {
+      preferenciasNotificaciones.value = resultado.preferencias;
+    }
+  } catch (error) {
+    console.error("No se pudieron cargar las preferencias de notificaciones:", error);
+  }
+};
+
 onIonViewWillEnter(() => {
   cargarUsuario();
   void cargarPrivacidad();
+  void cargarPreferenciasNotificaciones();
 });
+
+const editarNotificaciones = async () => {
+  const valoresActuales = preferenciasNotificaciones.value;
+  const seleccionadas: string[] = [];
+  const alerta = await alertController.create({
+    mode: "ios",
+    header: "Notificaciones",
+    message: "Elige qué avisos quieres recibir.",
+    inputs: [
+      { type: "checkbox", label: "Mensajes privados", value: "privados", checked: valoresActuales.privados },
+      { type: "checkbox", label: "Mensajes de grupos", value: "grupos", checked: valoresActuales.grupos },
+      { type: "checkbox", label: "Nuevas historias", value: "estados", checked: valoresActuales.estados },
+    ],
+    buttons: [
+      { text: "Cancelar", role: "cancel" },
+      {
+        text: "Guardar",
+        role: "confirm",
+        handler: async (valores: string[]) => {
+          seleccionadas.splice(0, seleccionadas.length, ...(Array.isArray(valores) ? valores : []));
+          if (
+            seleccionadas.length > 0 &&
+            "Notification" in window &&
+            Notification.permission === "default"
+          ) {
+            await Notification.requestPermission();
+          }
+          return true;
+        },
+      },
+    ],
+  });
+  await alerta.present();
+  const { role } = await alerta.onDidDismiss();
+  if (role !== "confirm") return;
+
+  const token = localStorage.getItem("token") || "";
+  if (!token) {
+    await mostrarAlerta("Sesión no válida", "Inicia sesión para guardar tus notificaciones.");
+    return;
+  }
+  try {
+    const datos = new URLSearchParams();
+    datos.append("token", token);
+    datos.append("privados", seleccionadas.includes("privados") ? "1" : "0");
+    datos.append("grupos", seleccionadas.includes("grupos") ? "1" : "0");
+    datos.append("estados", seleccionadas.includes("estados") ? "1" : "0");
+    const respuesta = await fetch(
+      "http://localhost/new%20app/api/controladores/notificaciones_controlador.php?task=guardarPreferencias",
+      { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: datos.toString() },
+    );
+    const resultado = await respuesta.json();
+    if (!respuesta.ok || !resultado.ok || !resultado.preferencias) {
+      throw new Error(resultado.error || "No se pudieron guardar las preferencias.");
+    }
+    preferenciasNotificaciones.value = resultado.preferencias;
+    await mostrarAlerta("Notificaciones guardadas", "Se aplicará a los mensajes e historias que lleguen desde ahora.");
+  } catch (error) {
+    console.error("No se pudieron guardar las preferencias de notificaciones:", error);
+    await mostrarAlerta("No se pudo guardar", error instanceof Error ? error.message : "Inténtalo de nuevo.");
+  }
+};
 
 const editarPrivacidad = async () => {
   const seccion = await actionSheetController.create({
@@ -341,7 +457,8 @@ const editarPrivacidad = async () => {
     buttons: [
       { text: "Foto de perfil", handler: () => void seleccionarVisibilidad("foto_perfil", "tu foto de perfil") },
       { text: "Descripción", handler: () => void seleccionarVisibilidad("descripcion", "tu descripción") },
-      { text: "Historias", handler: () => void seleccionarVisibilidad("estados", "tus historias") },
+      { text: "Última conexión", handler: () => void seleccionarVisibilidad("ultima_conexion", "tu última conexión") },
+      { text: "Historias", handler: () => void seleccionarPrivacidadHistorias() },
       { text: "Cancelar", role: "cancel" },
     ],
   });
@@ -349,10 +466,10 @@ const editarPrivacidad = async () => {
 };
 
 const seleccionarVisibilidad = async (
-  campo: keyof PrivacidadPerfil,
+  campo: "foto_perfil" | "descripcion" | "ultima_conexion",
   nombre: string,
 ) => {
-  const opciones: Array<{ valor: PrivacidadPerfil[keyof PrivacidadPerfil]; texto: string }> = [
+  const opciones: Array<{ valor: "todos" | "contactos" | "nadie"; texto: string }> = [
     { valor: "todos", texto: "Todos" },
     { valor: "contactos", texto: "Mis contactos" },
     { valor: "nadie", texto: "Nadie" },
@@ -371,24 +488,7 @@ const seleccionarVisibilidad = async (
           }
           const nuevaPrivacidad = { ...privacidad.value, [campo]: opcion.valor };
           try {
-            const datos = new URLSearchParams();
-            datos.append("token", token);
-            datos.append("foto_perfil", nuevaPrivacidad.foto_perfil);
-            datos.append("descripcion", nuevaPrivacidad.descripcion);
-            datos.append("estados", nuevaPrivacidad.estados);
-            const respuesta = await fetch(
-              "http://localhost/new%20app/api/controladores/usuarios_controlador.php?task=guardarPrivacidad",
-              {
-                method: "POST",
-                headers: { "Content-Type": "application/x-www-form-urlencoded" },
-                body: datos.toString(),
-              },
-            );
-            const resultado = await respuesta.json();
-            if (!resultado.ok || !resultado.privacidad) {
-              throw new Error(resultado.error || "No se pudo guardar la privacidad.");
-            }
-            privacidad.value = resultado.privacidad;
+            privacidad.value = await guardarPrivacidadEnServidor(token, nuevaPrivacidad);
             await mostrarAlerta("Privacidad actualizada", `Se guardó quién puede ver ${nombre}.`);
           } catch (error) {
             console.error("No se pudo guardar la privacidad:", error);
@@ -403,6 +503,148 @@ const seleccionarVisibilidad = async (
     ],
   });
   await selector.present();
+};
+
+const guardarPrivacidadEnServidor = async (token: string, ajustes: PrivacidadPerfil) => {
+  const datos = new URLSearchParams();
+  datos.append("token", token);
+  datos.append("foto_perfil", ajustes.foto_perfil);
+  datos.append("descripcion", ajustes.descripcion);
+  datos.append("estados", ajustes.estados);
+  datos.append("ultima_conexion", ajustes.ultima_conexion);
+  datos.append("contactos_estados", JSON.stringify(ajustes.contactos_estados || []));
+
+  const respuesta = await fetch(
+    "http://localhost/new%20app/api/controladores/usuarios_controlador.php?task=guardarPrivacidad",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: datos.toString(),
+    },
+  );
+  const resultado = await respuesta.json();
+  if (!respuesta.ok || !resultado.ok || !resultado.privacidad) {
+    throw new Error(resultado.error || "No se pudo guardar la privacidad.");
+  }
+  return resultado.privacidad as PrivacidadPerfil;
+};
+
+const seleccionarPrivacidadHistorias = async () => {
+  const valoresSimples = [
+    { id: "contactos", label: "Mis contactos" },
+  ] as const;
+  const selector = await actionSheetController.create({
+    mode: "ios",
+    header: "Privacidad de historias nuevas",
+    buttons: [
+      ...valoresSimples.map((opcion) => ({
+        text: `${opcion.label}${privacidad.value.estados === opcion.id ? " ✓" : ""}`,
+        handler: () => void guardarAudienciaHistorias(opcion.id, []),
+      })),
+      {
+        text: `Mis contactos excepto…${privacidad.value.estados === "contactos_excepto" ? " ✓" : ""}`,
+        handler: () => void elegirContactosHistorias("contactos_excepto"),
+      },
+      {
+        text: `Solo compartir con…${privacidad.value.estados === "solo_seleccionados" ? " ✓" : ""}`,
+        handler: () => void elegirContactosHistorias("solo_seleccionados"),
+      },
+      { text: "Cancelar", role: "cancel" },
+    ],
+  });
+  await selector.present();
+};
+
+const elegirContactosHistorias = async (
+  modo: "contactos_excepto" | "solo_seleccionados",
+) => {
+  const token = localStorage.getItem("token") || "";
+  if (!token) {
+    await mostrarAlerta("Sesión no válida", "Inicia sesión para configurar la audiencia.");
+    return;
+  }
+
+  try {
+    const formulario = new URLSearchParams();
+    formulario.append("token", token);
+    const respuestaContactos = await fetch(
+      "http://localhost/new%20app/api/controladores/contactos_controlador.php?task=obtenerContactos",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: formulario.toString(),
+        cache: "no-store",
+      },
+    );
+    const resultadoContactos = await respuestaContactos.json();
+    if (!resultadoContactos.ok) throw new Error(resultadoContactos.error || "No se pudieron cargar tus contactos.");
+
+    const contactos = (resultadoContactos.contactos || []) as Array<any>;
+    let seleccionados: number[] = [];
+    const opciones = contactos.map((contacto) => {
+      const id = Number(contacto.contacto_id);
+      const nombre = `${contacto.nombre_personalizado || contacto.nombre || ""} ${contacto.apellido || ""}`.trim();
+      const marcado = privacidad.value.contactos_estados.includes(id);
+      return {
+        type: "checkbox" as const,
+        label: nombre || contacto.telefono || `Contacto ${id}`,
+        value: id,
+        checked: marcado,
+      };
+    });
+
+    const alerta = await alertController.create({
+      mode: "ios",
+      header: modo === "contactos_excepto" ? "Excluir contactos" : "Compartir solo con",
+      message: "Selecciona los contactos para tus historias nuevas.",
+      inputs: opciones,
+      buttons: [
+        { text: "Cancelar", role: "cancel" },
+        {
+          text: "Guardar",
+          role: "confirm",
+          handler: (valores: number[]) => {
+            seleccionados = Array.isArray(valores) ? valores.map(Number) : [];
+            return true;
+          },
+        },
+      ],
+    });
+    await alerta.present();
+    const { role } = await alerta.onDidDismiss();
+    if (role === "confirm") await guardarAudienciaHistorias(modo, seleccionados);
+  } catch (error) {
+    console.error("No se pudo configurar la audiencia de historias:", error);
+    await mostrarAlerta(
+      "No se pudo cargar la lista",
+      error instanceof Error ? error.message : "Inténtalo de nuevo.",
+    );
+  }
+};
+
+const guardarAudienciaHistorias = async (
+  modo: PrivacidadPerfil["estados"],
+  contactos: number[],
+) => {
+  const token = localStorage.getItem("token") || "";
+  if (!token) {
+    await mostrarAlerta("Sesión no válida", "Inicia sesión para guardar la audiencia.");
+    return;
+  }
+  try {
+    privacidad.value = await guardarPrivacidadEnServidor(token, {
+      ...privacidad.value,
+      estados: modo,
+      contactos_estados: contactos,
+    });
+    await mostrarAlerta("Privacidad actualizada", "La audiencia se aplicará a las historias que publiques desde ahora.");
+  } catch (error) {
+    console.error("No se pudo guardar la audiencia:", error);
+    await mostrarAlerta(
+      "No se pudo guardar",
+      error instanceof Error ? error.message : "Inténtalo de nuevo.",
+    );
+  }
 };
 
 const editarPerfil = async () => {
