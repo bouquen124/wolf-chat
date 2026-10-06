@@ -55,6 +55,11 @@ switch ($_GET['task']) {
 
         break;
 
+    case "actualizarFotoGrupo":
+        $reg = new conversaciones($pdo);
+        $reg->actualizarFotoGrupo($_POST, $_GET);
+        break;
+
     case "obtenerGrupos":
         $reg = new conversaciones($pdo);
         $reg->obtenerGrupos($_POST, $_GET);

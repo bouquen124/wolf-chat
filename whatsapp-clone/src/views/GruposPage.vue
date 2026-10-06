@@ -93,9 +93,12 @@
         <ion-content>
           <div class="modal-contenido">
             <div class="grupo-form">
-              <div class="grupo-avatar">
-                <ion-icon :icon="peopleOutline" />
-              </div>
+              <button class="grupo-avatar" type="button" aria-label="Elegir foto del grupo" @click="entradaFotoGrupo?.click()">
+                <img v-if="previewFotoGrupo" :src="previewFotoGrupo" alt="Foto del grupo" />
+                <ion-icon v-else :icon="peopleOutline" />
+                <span class="grupo-avatar-camara"><ion-icon :icon="cameraOutline" /></span>
+              </button>
+              <input ref="entradaFotoGrupo" class="entrada-foto-grupo" type="file" accept="image/jpeg,image/png,image/webp" @change="seleccionarFotoGrupo" />
 
               <ion-input
                 v-model="nombreGrupo"
@@ -190,7 +193,7 @@ import {
   onIonViewWillEnter,
   onIonViewWillLeave,
 } from "@ionic/vue";
-import { addOutline, peopleOutline, checkmarkOutline } from "ionicons/icons";
+import { addOutline, peopleOutline, checkmarkOutline, cameraOutline } from "ionicons/icons";
 import { useRouter } from "vue-router";
 
 interface Grupo {
@@ -225,6 +228,9 @@ const nombreGrupo = ref("");
 const seleccionados = ref<number[]>([]);
 const modalCrearGrupo = ref(false);
 const creandoGrupo = ref(false);
+const entradaFotoGrupo = ref<HTMLInputElement | null>(null);
+const fotoGrupo = ref<File | null>(null);
+const previewFotoGrupo = ref("");
 const token = localStorage.getItem("token") || "";
 
 let intervaloGrupos: ReturnType<typeof setInterval> | null = null;
@@ -290,6 +296,7 @@ const obtenerContactos = async () => {
 };
 
 const abrirCrearGrupo = async () => {
+  limpiarFotoGrupo();
   nombreGrupo.value = "";
   busquedaContacto.value = "";
   seleccionados.value = [];
@@ -299,12 +306,34 @@ const abrirCrearGrupo = async () => {
   modalCrearGrupo.value = true;
 };
 
+const limpiarFotoGrupo = () => {
+  if (previewFotoGrupo.value.startsWith("blob:")) URL.revokeObjectURL(previewFotoGrupo.value);
+  previewFotoGrupo.value = "";
+  fotoGrupo.value = null;
+  if (entradaFotoGrupo.value) entradaFotoGrupo.value.value = "";
+};
+
+const seleccionarFotoGrupo = (evento: Event) => {
+  const input = evento.target as HTMLInputElement;
+  const archivo = input.files?.[0];
+  if (!archivo) return;
+  if (!["image/jpeg", "image/png", "image/webp"].includes(archivo.type) || archivo.size > 5 * 1024 * 1024) {
+    window.alert("Elige una imagen JPG, PNG o WebP de máximo 5 MB.");
+    input.value = "";
+    return;
+  }
+  limpiarFotoGrupo();
+  fotoGrupo.value = archivo;
+  previewFotoGrupo.value = URL.createObjectURL(archivo);
+};
+
 const cerrarCrearGrupo = () => {
   if (creandoGrupo.value) {
     return;
   }
 
   modalCrearGrupo.value = false;
+  limpiarFotoGrupo();
 };
 
 const alternarSeleccion = (contactoId: number) => {
@@ -353,6 +382,7 @@ const crearGrupo = async () => {
     formData.append("token", token);
     formData.append("nombre", nombreGrupo.value.trim());
     formData.append("usuarios", JSON.stringify(seleccionados.value));
+    if (fotoGrupo.value) formData.append("foto", fotoGrupo.value);
 
     const respuesta = await fetch(
       "http://localhost/new%20app/api/controladores/conversaciones_controlador.php?task=crearGrupo",
@@ -367,6 +397,7 @@ const crearGrupo = async () => {
 
     if (datos.ok) {
       modalCrearGrupo.value = false;
+      limpiarFotoGrupo();
 
       await obtenerGrupos();
 
@@ -375,9 +406,11 @@ const crearGrupo = async () => {
       }
     } else {
       console.error(datos.error || "No se pudo crear el grupo");
+      window.alert(datos.error || "No se pudo crear el grupo.");
     }
   } catch (error) {
     console.error("Error al crear grupo:", error);
+    window.alert("No se pudo crear el grupo. Revisa tu conexión e inténtalo de nuevo.");
   } finally {
     creandoGrupo.value = false;
   }
@@ -646,6 +679,11 @@ ion-fab {
 }
 
 .grupo-avatar {
+  position: relative;
+  padding: 0;
+  border: 0;
+  overflow: visible;
+  cursor: pointer;
   min-width: 58px;
   width: 58px;
   height: 58px;
@@ -656,6 +694,11 @@ ion-fab {
   background: linear-gradient(135deg, var(--app-accent, #10b981), var(--app-accent-secondary, #06b6d4));
   box-shadow: 0 0 24px rgba(16, 185, 129, 0.25);
 }
+
+.grupo-avatar > img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
+.grupo-avatar-camara { position: absolute; right: -3px; bottom: -3px; width: 23px; height: 23px; border: 2px solid #090d16; border-radius: 50%; display: grid; place-items: center; color: #fff; background: var(--app-accent-secondary, #06b6d4); }
+.grupo-avatar-camara ion-icon { font-size: 13px; }
+.entrada-foto-grupo { display: none; }
 
 .grupo-avatar ion-icon {
   font-size: 28px;

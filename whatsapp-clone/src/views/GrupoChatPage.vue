@@ -6,10 +6,14 @@
           <ion-back-button default-href="/grupos" />
         </ion-buttons>
         <div class="header-contacto">
-          <div class="avatar-ring-header">
+          <button v-if="grupo.rol === 'administrador'" class="avatar-ring-header avatar-cambiable" type="button" aria-label="Cambiar foto del grupo" @click="entradaFotoGrupo?.click()">
             <ion-avatar class="avatar-header">
               <img v-if="grupo.foto" :src="grupo.foto" />
             </ion-avatar>
+            <span><ion-icon :icon="cameraOutline" /></span>
+          </button>
+          <div v-else class="avatar-ring-header">
+            <ion-avatar class="avatar-header"><img v-if="grupo.foto" :src="grupo.foto" /></ion-avatar>
           </div>
           <ion-title>{{ grupo.nombre }}</ion-title>
         </div>
@@ -33,6 +37,8 @@
         </ion-button>
       </ion-toolbar>
     </ion-header>
+
+    <input ref="entradaFotoGrupo" class="entrada-foto-grupo" type="file" accept="image/jpeg,image/png,image/webp" @change="actualizarFotoGrupo" />
 
     <ion-modal
       :is-open="mostrarIntegrantes"
@@ -182,7 +188,7 @@ import {
   onIonViewWillEnter,
   onIonViewWillLeave,
 } from "@ionic/vue";
-import { exitOutline, peopleOutline, sendOutline } from "ionicons/icons";
+import { exitOutline, peopleOutline, sendOutline, cameraOutline } from "ionicons/icons";
 import { useRoute, useRouter } from "vue-router";
 import PerfilContactoModal from "../components/PerfilContactoModal.vue";
 
@@ -209,6 +215,7 @@ interface Integrante {
   nombre: string;
   apellido: string | null;
   foto: string | null;
+  rol?: string;
   descripcion?: string | null;
   ultima_conexion?: string | null;
   en_linea?: boolean;
@@ -264,6 +271,7 @@ const perfilIntegranteActual = computed(() => {
     rol: integrante.rol,
   };
 });
+const entradaFotoGrupo = ref<HTMLInputElement | null>(null);
 const cargandoIntegrantes = ref(false);
 const errorIntegrantes = ref("");
 
@@ -347,6 +355,7 @@ const obtenerGrupo = async () => {
           conversacion_id: grupoEncontrado.conversacion_id,
           nombre: grupoEncontrado.nombre,
           foto: grupoEncontrado.foto,
+          rol: grupoEncontrado.rol,
         };
       }
     }
@@ -387,6 +396,33 @@ const abrirIntegrantes = async () => {
 
 const cerrarIntegrantes = () => {
   mostrarIntegrantes.value = false;
+};
+
+const actualizarFotoGrupo = async (evento: Event) => {
+  const input = evento.target as HTMLInputElement;
+  const archivo = input.files?.[0];
+  if (!archivo) return;
+  if (!["image/jpeg", "image/png", "image/webp"].includes(archivo.type) || archivo.size > 5 * 1024 * 1024) {
+    const alerta = await alertController.create({ mode: "ios", header: "Foto no válida", message: "Elige una imagen JPG, PNG o WebP de máximo 5 MB.", buttons: ["Aceptar"] });
+    await alerta.present();
+    input.value = "";
+    return;
+  }
+  try {
+    const formData = new FormData();
+    formData.append("token", token);
+    formData.append("conversacion_id", String(conversacionId));
+    formData.append("foto", archivo);
+    const respuesta = await fetch("http://localhost/new%20app/api/controladores/conversaciones_controlador.php?task=actualizarFotoGrupo", { method: "POST", body: formData, cache: "no-store" });
+    const datos = await respuesta.json();
+    if (!datos.ok) throw new Error(datos.error || "No se pudo actualizar la foto del grupo.");
+    grupo.value.foto = datos.foto;
+  } catch (error: any) {
+    const alerta = await alertController.create({ mode: "ios", header: "No se pudo cambiar la foto", message: error.message || "Inténtalo de nuevo.", buttons: ["Aceptar"] });
+    await alerta.present();
+  } finally {
+    input.value = "";
+  }
 };
 
 const abrirPerfilIntegrante = (integrante: Integrante) => {
@@ -770,6 +806,11 @@ onUnmounted(() => {
   background-size: cover;
   background-position: center;
 }
+
+.avatar-cambiable { position: relative; box-sizing: border-box; display: grid; place-items: center; border: 0; padding: 2px; background: transparent; cursor: pointer; }
+.avatar-cambiable > span { position: absolute; right: -2px; bottom: -2px; width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; color: #fff; background: var(--app-accent-secondary, #06b6d4); border: 2px solid #090d16; }
+.avatar-cambiable > span ion-icon { font-size: 11px; }
+.entrada-foto-grupo { display: none; }
 
 .mensaje {
   display: flex;

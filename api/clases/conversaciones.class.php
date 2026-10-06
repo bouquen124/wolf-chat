@@ -10,6 +10,28 @@ class conversaciones
         $this->pdo = $pdo;
     }
 
+    private function guardarFotoGrupo($archivo)
+    {
+        if (!$archivo || ($archivo['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_NO_FILE) return null;
+        if (($archivo['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK || ($archivo['size'] ?? 0) <= 0 || $archivo['size'] > 5 * 1024 * 1024) {
+            throw new RuntimeException('La foto del grupo debe pesar máximo 5 MB.');
+        }
+        $finfo = finfo_open(FILEINFO_MIME_TYPE);
+        $mime = finfo_file($finfo, $archivo['tmp_name']);
+        finfo_close($finfo);
+        $tipos = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp'];
+        if (!isset($tipos[$mime])) throw new RuntimeException('Usa una imagen JPG, PNG o WebP.');
+
+        $carpeta = dirname(__DIR__) . '/uploads/grupos/';
+        if (!is_dir($carpeta) && !mkdir($carpeta, 0755, true)) throw new RuntimeException('No se pudo preparar la carpeta de fotos de grupos.');
+        $nombre = bin2hex(random_bytes(16)) . '.' . $tipos[$mime];
+        $fisica = $carpeta . $nombre;
+        if (!move_uploaded_file($archivo['tmp_name'], $fisica)) throw new RuntimeException('No se pudo guardar la foto del grupo.');
+        $protocolo = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+        $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+        return ['ruta' => $protocolo . '://' . $host . '/new%20app/api/uploads/grupos/' . $nombre, 'fisica' => $fisica];
+    }
+
     private function validarSesion($token)
     {
         $sql = "
@@ -636,6 +658,7 @@ class conversaciones
         c.id AS conversacion_id,
         c.nombre,
         c.foto,
+        cu.rol,
         ultimo_mensaje.mensaje,
         ultimo_mensaje.mensaje_tipo,
         ultimo_mensaje.fecha_envio,
@@ -944,6 +967,55 @@ class conversaciones
         }
     }
 
+    public function actualizarFotoGrupo($p, $g)
+    {
+        header('Content-Type: application/json; charset=utf-8');
+        $usuarioId = $this->validarSesion($p['token'] ?? '');
+        $conversacionId = (int)($p['conversacion_id'] ?? 0);
+        if (!$usuarioId || !$conversacionId || empty($_FILES['foto'])) {
+            http_response_code(400);
+            print json_encode(['ok' => false, 'error' => 'Selecciona una foto y un grupo válido'], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+
+        $fotoNueva = null;
+        try {
+            $stmt = $this->pdo->prepare(
+                "SELECT c.foto FROM conversaciones c
+                 INNER JOIN conversacion_usuarios cu ON cu.conversacion_id = c.id
+                 WHERE c.id = ? AND c.tipo = 'grupo' AND c.estado = 'activa'
+                   AND cu.usuario_id = ? AND cu.estado = 'activo' AND cu.rol = 'administrador'
+                 LIMIT 1"
+            );
+            $stmt->execute([$conversacionId, $usuarioId]);
+            $fotoAnterior = $stmt->fetchColumn();
+            if ($fotoAnterior === false) {
+                http_response_code(403);
+                print json_encode(['ok' => false, 'error' => 'Solo un administrador activo puede cambiar la foto del grupo'], JSON_UNESCAPED_UNICODE);
+                return;
+            }
+
+            $fotoNueva = $this->guardarFotoGrupo($_FILES['foto']);
+            if (!$fotoNueva) throw new RuntimeException('Selecciona una foto válida.');
+            $stmt = $this->pdo->prepare("UPDATE conversaciones SET foto = ? WHERE id = ? AND tipo = 'grupo'");
+            $stmt->execute([$fotoNueva['ruta'], $conversacionId]);
+
+            if (is_string($fotoAnterior)) {
+                $rutaAnterior = parse_url($fotoAnterior, PHP_URL_PATH) ?: '';
+                if (strpos($rutaAnterior, '/api/uploads/grupos/') !== false) {
+                    $archivoAnterior = dirname(__DIR__) . '/uploads/grupos/' . basename($rutaAnterior);
+                    if (is_file($archivoAnterior)) unlink($archivoAnterior);
+                }
+            }
+            print json_encode(['ok' => true, 'foto' => $fotoNueva['ruta']], JSON_UNESCAPED_UNICODE);
+        } catch (Throwable $e) {
+            if (!empty($fotoNueva['fisica']) && is_file($fotoNueva['fisica'])) unlink($fotoNueva['fisica']);
+            error_log('actualizarFotoGrupo: ' . $e->getMessage());
+            http_response_code($e instanceof RuntimeException ? 400 : 500);
+            print json_encode(['ok' => false, 'error' => $e instanceof RuntimeException ? $e->getMessage() : 'No se pudo actualizar la foto del grupo'], JSON_UNESCAPED_UNICODE);
+        }
+    }
+
     public function crearGrupo($p, $g)
     {
         header('Content-Type: application/json; charset=utf-8');
@@ -1026,21 +1098,26 @@ class conversaciones
             return;
         }
 
+        $fotoGrupo = null;
+
         try {
 
             $this->pdo->beginTransaction();
+            $fotoGrupo = $this->guardarFotoGrupo($_FILES['foto'] ?? null);
 
             $sql = "
         INSERT INTO conversaciones
         (
             tipo,
             nombre,
+            foto,
             creador_id,
             estado
         )
         VALUES
         (
             'grupo',
+            ?,
             ?,
             ?,
             'activa'
@@ -1050,6 +1127,7 @@ class conversaciones
             $stmt = $this->pdo->prepare($sql);
             $stmt->execute([
                 $nombre,
+                $fotoGrupo['ruta'] ?? null,
                 $usuarioId
             ]);
 
@@ -1115,10 +1193,14 @@ class conversaciones
             if ($this->pdo->inTransaction()) {
                 $this->pdo->rollBack();
             }
+            if (!empty($fotoGrupo['fisica']) && is_file($fotoGrupo['fisica'])) {
+                unlink($fotoGrupo['fisica']);
+            }
 
+            if ($e instanceof RuntimeException) http_response_code(400);
             print json_encode([
                 'ok' => false,
-                'error' => 'No se pudo crear el grupo'
+                'error' => $e instanceof RuntimeException ? $e->getMessage() : 'No se pudo crear el grupo'
             ], JSON_UNESCAPED_UNICODE);
         }
     }
