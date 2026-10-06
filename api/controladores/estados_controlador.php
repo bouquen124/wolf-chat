@@ -11,6 +11,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 }
 
 include_once("../config/database.php");
+require_once __DIR__ . '/../config/tareas_programadas.php';
+ejecutarTareasProgramadasEnPeticion($pdo);
 include_once("../clases/estados.class.php");
 
 $task = $_GET['task'] ?? '';
@@ -20,6 +22,14 @@ $reg = new estados($pdo);
 switch ($task) {
     case "crearEstado":
         $reg->crearEstado($_POST, $_GET);
+        break;
+
+    case "obtenerProgramados":
+        $reg->obtenerEstadosProgramados($_POST, $_GET);
+        break;
+
+    case "cancelarProgramado":
+        $reg->cancelarEstadoProgramado($_POST, $_GET);
         break;
 
     case "obtenerMisEstados":

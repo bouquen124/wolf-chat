@@ -304,6 +304,35 @@ class usuarios
         }
     }
 
+    function obtenerRestriccionesContactos($p, $g)
+    {
+        header('Content-Type: application/json; charset=utf-8');
+        $usuarioId = $this->usuarioDeSesion($p['token'] ?? '');
+        if (!$usuarioId) {
+            http_response_code(401);
+            print json_encode(['ok' => false, 'error' => 'Sesión no válida'], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+        try {
+            $stmt = $this->conn->prepare(
+                "SELECT pr.contacto_id, u.nombre, u.apellido, c.nombre_personalizado,
+                        pr.ocultar_estados, pr.ocultar_foto, pr.ocultar_descripcion, pr.ocultar_ultima_conexion
+                 FROM privacidad_restricciones_contacto pr
+                 INNER JOIN usuarios u ON u.id = pr.contacto_id
+                 LEFT JOIN contactos c ON c.usuario_id = pr.usuario_id AND c.contacto_id = pr.contacto_id
+                 WHERE pr.usuario_id = ?
+                   AND (pr.ocultar_estados = 1 OR pr.ocultar_foto = 1 OR pr.ocultar_descripcion = 1 OR pr.ocultar_ultima_conexion = 1)
+                 ORDER BY COALESCE(c.nombre_personalizado, u.nombre), u.apellido"
+            );
+            $stmt->execute([$usuarioId]);
+            print json_encode(['ok' => true, 'restricciones' => $stmt->fetchAll(PDO::FETCH_ASSOC)], JSON_UNESCAPED_UNICODE);
+        } catch (PDOException $e) {
+            error_log('obtenerRestriccionesContactos: ' . $e->getMessage());
+            http_response_code(500);
+            print json_encode(['ok' => false, 'error' => 'No se pudieron cargar las excepciones'], JSON_UNESCAPED_UNICODE);
+        }
+    }
+
     function guardarRestriccionesContacto($p, $g)
     {
         header('Content-Type: application/json; charset=utf-8');

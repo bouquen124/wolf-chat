@@ -10,6 +10,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit;
 }
 
+include_once("../config/database.php");
+require_once __DIR__ . '/../config/tareas_programadas.php';
+ejecutarTareasProgramadasEnPeticion($pdo);
+
 $task = $_GET['task'] ?? '';
 
 switch ($task) {
@@ -71,6 +75,12 @@ switch ($task) {
         include_once("../clases/usuarios.class.php");
         $reg = new usuarios();
         $reg->obtenerRestriccionesContacto($_POST, $_GET);
+        break;
+
+    case "obtenerRestriccionesContactos":
+        include_once("../clases/usuarios.class.php");
+        $reg = new usuarios();
+        $reg->obtenerRestriccionesContactos($_POST, $_GET);
         break;
 
     case "guardarRestriccionesContacto":

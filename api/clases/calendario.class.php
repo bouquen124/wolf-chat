@@ -3,9 +3,8 @@ class calendario
 {
     private $pdo;
 
-    public function __construct()
+    public function __construct(PDO $pdo)
     {
-        require_once __DIR__ . '/../config/database.php';
         $this->pdo = $pdo;
     }
 

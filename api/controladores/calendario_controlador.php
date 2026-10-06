@@ -10,8 +10,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit;
 }
 
+include_once('../config/database.php');
+require_once __DIR__ . '/../config/tareas_programadas.php';
+ejecutarTareasProgramadasEnPeticion($pdo);
 include_once('../clases/calendario.class.php');
-$reg = new calendario();
+$reg = new calendario($pdo);
 $task = $_GET['task'] ?? '';
 
 switch ($task) {

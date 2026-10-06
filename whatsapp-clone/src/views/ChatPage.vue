@@ -67,10 +67,39 @@
             esMiMensaje(mensaje.remitente_id) ? 'mensaje-yo' : 'mensaje-otro'
           "
         >
-          <div class="burbuja">
-            <div class="texto">
-              {{ mensaje.mensaje }}
+          <div class="burbuja" :class="{ 'burbuja-media': mensaje.mensaje_tipo === 'imagen' || mensaje.mensaje_tipo === 'audio' }">
+            <img
+              v-if="mensaje.mensaje_tipo === 'imagen' && mensaje.archivo_local_url"
+              class="media-imagen"
+              :src="mensaje.archivo_local_url"
+              :alt="mensaje.archivo_nombre || 'Imagen enviada'"
+            />
+            <audio
+              v-else-if="mensaje.mensaje_tipo === 'audio' && mensaje.archivo_local_url"
+              class="audio-elemento-oculto"
+              :ref="(elemento) => registrarAudio(mensaje.id, elemento)"
+              :src="mensaje.archivo_local_url"
+              preload="metadata"
+              @timeupdate="actualizarProgresoAudio(mensaje.id)"
+              @loadedmetadata="resolverDuracionAudio(mensaje.id)"
+              @durationchange="resolverDuracionAudio(mensaje.id)"
+              @ended="terminoAudio(mensaje.id)"
+            />
+            <div v-if="mensaje.mensaje_tipo === 'audio' && mensaje.archivo_local_url" class="reproductor-audio">
+              <ion-button class="audio-play" fill="clear" :aria-label="audioReproduciendo === mensaje.id ? 'Pausar audio' : 'Reproducir audio'" @click.stop="alternarReproduccionAudio(mensaje.id)">
+                <ion-icon :icon="audioReproduciendo === mensaje.id ? pauseOutline : playOutline" />
+              </ion-button>
+              <div class="audio-detalles">
+                <div class="onda-audio" role="slider" aria-label="Progreso del audio" @click.stop="buscarAudio($event, mensaje.id)">
+                  <i v-for="(altura, indice) in ondaAudio" :key="indice" :class="{ activa: indice / ondaAudio.length <= progresoAudio(mensaje.id) }" :style="{ height: `${altura}px` }"></i>
+                </div>
+                <div class="audio-tiempo">
+                  <span>{{ tiempoAudio(mensaje.id) }}</span>
+                  <span>{{ duracionAudio(mensaje.id) }}</span>
+                </div>
+              </div>
             </div>
+            <div v-else-if="mensaje.mensaje_tipo !== 'imagen' && mensaje.mensaje_tipo !== 'audio'" class="texto">{{ mensaje.mensaje }}</div>
 
             <div class="hora">
               {{ formatearHora(mensaje.fecha_envio) }}
@@ -90,6 +119,16 @@
                 }}
               </span>
             </div>
+            <ion-button
+              v-if="esMiMensaje(mensaje.remitente_id) && mensaje.mensaje_tipo !== 'eliminado'"
+              class="eliminar-mensaje"
+              fill="clear"
+              size="small"
+              aria-label="Eliminar mensaje para todos"
+              @click="eliminarMensajeParaTodos(mensaje)"
+            >
+              <ion-icon :icon="trashOutline" />
+            </ion-button>
           </div>
         </div>
       </div>
@@ -128,20 +167,54 @@
     </div>
 
     <div class="barra-mensaje">
+      <input
+        ref="entradaAdjunto"
+        class="entrada-adjunto"
+        type="file"
+        accept="image/jpeg,image/png,image/webp,image/gif,audio/*"
+        @change="seleccionarAdjunto"
+      />
+      <div v-if="archivoPendiente" class="adjunto-pendiente">
+        <span>{{ archivoPendiente.type.startsWith('audio/') ? 'Nota de voz lista para enviar' : archivoPendiente.name }}</span>
+        <ion-button fill="clear" size="small" aria-label="Quitar archivo" @click="archivoPendiente = null">
+          <ion-icon :icon="closeCircleOutline" />
+        </ion-button>
+      </div>
+      <ion-button
+        class="boton-adjunto"
+        fill="clear"
+        aria-label="Adjuntar foto o audio"
+        :disabled="enviandoArchivo || grabandoAudio"
+        @click="entradaAdjunto?.click()"
+      >
+        <ion-icon :icon="attachOutline" />
+      </ion-button>
+      <ion-button
+        class="boton-adjunto"
+        :class="{ 'grabando-audio': grabandoAudio }"
+        fill="clear"
+        :aria-label="grabandoAudio ? 'Detener grabación' : 'Grabar audio'"
+        :disabled="enviandoArchivo || Boolean(archivoPendiente)"
+        @click="alternarGrabacionAudio"
+      >
+        <ion-icon :icon="grabandoAudio ? stopOutline : micOutline" />
+      </ion-button>
+      <span v-if="grabandoAudio" class="estado-grabacion"><i></i> Grabando {{ formatoTiempoAudio(grabacionSegundos) }}</span>
       <ion-input
         v-model="nuevoMensaje"
         placeholder="Escribe un mensaje..."
         fill="outline"
         maxlength="4000"
         :clear-input="true"
+        :disabled="Boolean(archivoPendiente) || grabandoAudio || enviandoArchivo"
         @keyup.enter="enviarMensaje"
       />
 
       <ion-button
         shape="round"
         class="boton-enviar"
-        :disabled="!nuevoMensaje.trim()"
-        @click="enviarMensaje"
+        :disabled="(!nuevoMensaje.trim() && !archivoPendiente) || enviandoArchivo || grabandoAudio"
+        @click="archivoPendiente ? enviarArchivoChat() : enviarMensaje()"
       >
         <ion-icon :icon="sendOutline" />
       </ion-button>
@@ -174,10 +247,11 @@ import {
   IonButton,
   IonIcon,
   IonAlert,
+  alertController,
   onIonViewDidLeave,
   onIonViewWillEnter,
 } from "@ionic/vue";
-import { sendOutline, callOutline } from "ionicons/icons";
+import { sendOutline, callOutline, attachOutline, micOutline, stopOutline, closeCircleOutline, trashOutline, playOutline, pauseOutline } from "ionicons/icons";
 import PerfilContactoModal from "../components/PerfilContactoModal.vue";
 
 interface Mensaje {
@@ -190,6 +264,10 @@ interface Mensaje {
   nombre: string;
   apellido: string;
   estado_mensaje: "enviado" | "entregado" | "leido" | null;
+  archivo_url?: string | null;
+  archivo_local_url?: string | null;
+  archivo_mime?: string | null;
+  archivo_nombre?: string | null;
 }
 
 interface Contacto {
@@ -220,9 +298,24 @@ interface LlamadaEntrante {
 }
 
 const route = useRoute();
+const apiServidor = `${window.location.protocol}//${window.location.hostname}/new%20app/api`;
 
 const nuevoMensaje = ref("");
 const mensajes = ref<Mensaje[]>([]);
+const entradaAdjunto = ref<HTMLInputElement | null>(null);
+const archivoPendiente = ref<File | null>(null);
+const enviandoArchivo = ref(false);
+const grabandoAudio = ref(false);
+const grabacionSegundos = ref(0);
+const grabadorAudio = ref<MediaRecorder | null>(null);
+let fragmentosAudio: Blob[] = [];
+let intervaloGrabacion: ReturnType<typeof setInterval> | null = null;
+const urlsAudioImagen = new Map<number, string>();
+const reproductoresAudio = new Map<number, HTMLAudioElement>();
+const ajustandoDuracionAudio = new Set<number>();
+const audioReproduciendo = ref<number | null>(null);
+const tiemposAudio = ref<Record<number, { actual: number; total: number }>>({});
+const ondaAudio = Array.from({ length: 36 }, (_, indice) => 7 + ((indice * 13 + 9) % 13));
 const usuarioId = ref<number | null>(null);
 const yaAgregado = ref(false);
 
@@ -1328,6 +1421,375 @@ const botonesLlamada = [
 
 /* ===================== MENSAJES ===================== */
 
+const abrirAlmacenAdjuntos = () => new Promise<IDBDatabase>((resolve, reject) => {
+  if (!window.indexedDB) {
+    reject(new Error("El almacenamiento local no está disponible en este dispositivo."));
+    return;
+  }
+  // v2 clears previous cached responses that included whitespace before the binary file.
+  const solicitud = indexedDB.open("miapp-adjuntos-chat", 2);
+  solicitud.onupgradeneeded = (evento) => {
+    const db = solicitud.result;
+    if (!db.objectStoreNames.contains("archivos")) {
+      db.createObjectStore("archivos", { keyPath: "id" });
+    } else if ((evento as IDBVersionChangeEvent).oldVersion < 2) {
+      solicitud.transaction?.objectStore("archivos").clear();
+    }
+  };
+  solicitud.onsuccess = () => resolve(solicitud.result);
+  solicitud.onerror = () => reject(solicitud.error || new Error("No se pudo abrir el almacenamiento local."));
+});
+
+const leerAdjuntoLocal = async (id: number): Promise<Blob | null> => {
+  const db = await abrirAlmacenAdjuntos();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction("archivos", "readonly");
+    const request = tx.objectStore("archivos").get(id);
+    request.onsuccess = () => resolve(request.result?.blob || null);
+    request.onerror = () => reject(request.error);
+    tx.oncomplete = () => db.close();
+    tx.onerror = () => db.close();
+  });
+};
+
+const guardarAdjuntoLocal = async (id: number, blob: Blob, nombre: string) => {
+  const db = await abrirAlmacenAdjuntos();
+  return new Promise<void>((resolve, reject) => {
+    const tx = db.transaction("archivos", "readwrite");
+    tx.objectStore("archivos").put({ id, blob, nombre });
+    tx.oncomplete = () => { db.close(); resolve(); };
+    tx.onerror = () => { db.close(); reject(tx.error); };
+  });
+};
+
+const quitarAdjuntoLocal = async (id: number) => {
+  const db = await abrirAlmacenAdjuntos();
+  return new Promise<void>((resolve, reject) => {
+    const tx = db.transaction("archivos", "readwrite");
+    tx.objectStore("archivos").delete(id);
+    tx.oncomplete = () => { db.close(); resolve(); };
+    tx.onerror = () => { db.close(); reject(tx.error); };
+  });
+};
+
+const registrarAudio = (id: number, elemento: unknown) => {
+  if (elemento && typeof (elemento as HTMLAudioElement).play === "function") {
+    const audio = elemento as HTMLAudioElement;
+    if (reproductoresAudio.get(Number(id)) !== audio) {
+      audio.defaultPlaybackRate = 1;
+      audio.playbackRate = 1;
+      reproductoresAudio.set(Number(id), audio);
+      audio.load();
+    }
+  } else {
+    reproductoresAudio.delete(Number(id));
+  }
+};
+
+const resolverDuracionAudio = (id: number) => {
+  const clave = Number(id);
+  const audio = reproductoresAudio.get(clave);
+  if (!audio) return;
+  actualizarProgresoAudio(clave);
+
+  // Some WebM voice notes have no duration in their container metadata.
+  // Seeking to the end makes Chromium/WebView calculate the real duration.
+  if ((Number.isFinite(audio.duration) && audio.duration > 0) || ajustandoDuracionAudio.has(clave)) return;
+  ajustandoDuracionAudio.add(clave);
+  const terminarAjuste = () => {
+    audio.removeEventListener("timeupdate", terminarAjuste);
+    const finSeekable = audio.seekable.length
+      ? audio.seekable.end(audio.seekable.length - 1)
+      : 0;
+    const duracion = Number.isFinite(audio.duration) && audio.duration > 0
+      ? audio.duration
+      : Number.isFinite(audio.currentTime) && audio.currentTime > 0
+        ? audio.currentTime
+        : finSeekable;
+    try { audio.currentTime = 0; } catch { /* The media may still be loading. */ }
+    tiemposAudio.value = {
+      ...tiemposAudio.value,
+      [clave]: { actual: 0, total: duracion },
+    };
+    ajustandoDuracionAudio.delete(clave);
+  };
+  audio.addEventListener("timeupdate", terminarAjuste, { once: true });
+  try {
+    audio.currentTime = Number.MAX_SAFE_INTEGER;
+  } catch {
+    audio.removeEventListener("timeupdate", terminarAjuste);
+    ajustandoDuracionAudio.delete(clave);
+  }
+};
+
+const alternarReproduccionAudio = async (id: number) => {
+  const audio = reproductoresAudio.get(Number(id));
+  if (!audio) return;
+  if (audioReproduciendo.value === Number(id) && !audio.paused) {
+    audio.pause();
+    audioReproduciendo.value = null;
+    return;
+  }
+  reproductoresAudio.forEach((otro, otroId) => {
+    if (otroId !== Number(id)) otro.pause();
+  });
+  try {
+    audio.defaultPlaybackRate = 1;
+    audio.playbackRate = 1;
+    await audio.play();
+    audioReproduciendo.value = Number(id);
+  } catch (error) {
+    console.error("No se pudo reproducir la nota de voz:", error);
+  }
+};
+
+const actualizarProgresoAudio = (id: number) => {
+  const audio = reproductoresAudio.get(Number(id));
+  if (!audio) return;
+  const tiempoAnterior = tiemposAudio.value[Number(id)];
+  const finSeekable = audio.seekable.length
+    ? audio.seekable.end(audio.seekable.length - 1)
+    : 0;
+  const duracion = Number.isFinite(audio.duration) && audio.duration > 0
+    ? audio.duration
+    : tiempoAnterior?.total || finSeekable;
+  tiemposAudio.value = {
+    ...tiemposAudio.value,
+    [Number(id)]: {
+      actual: Number.isFinite(audio.currentTime) ? audio.currentTime : 0,
+      total: duracion,
+    },
+  };
+  if (audio.paused && audioReproduciendo.value === Number(id)) audioReproduciendo.value = null;
+};
+
+const terminoAudio = (id: number) => {
+  if (audioReproduciendo.value === Number(id)) audioReproduciendo.value = null;
+  actualizarProgresoAudio(id);
+};
+
+const progresoAudio = (id: number) => {
+  const tiempo = tiemposAudio.value[Number(id)];
+  return tiempo?.total ? tiempo.actual / tiempo.total : 0;
+};
+
+const formatoTiempoAudio = (segundos: number) => {
+  if (!Number.isFinite(segundos) || segundos < 0) return "0:00";
+  const total = Math.floor(segundos);
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
+};
+
+const tiempoAudio = (id: number) => formatoTiempoAudio(tiemposAudio.value[Number(id)]?.actual || 0);
+const duracionAudio = (id: number) => formatoTiempoAudio(tiemposAudio.value[Number(id)]?.total || 0);
+
+const buscarAudio = (evento: MouseEvent, id: number) => {
+  const audio = reproductoresAudio.get(Number(id));
+  const onda = evento.currentTarget as HTMLElement;
+  if (!audio || !audio.duration || !onda) return;
+  const rect = onda.getBoundingClientRect();
+  audio.currentTime = Math.max(0, Math.min(1, (evento.clientX - rect.left) / rect.width)) * audio.duration;
+  actualizarProgresoAudio(id);
+};
+
+const prepararAdjunto = async (mensaje: Mensaje): Promise<Mensaje> => {
+  const archivoUrl = mensaje.archivo_url;
+  if (!archivoUrl || !["imagen", "audio"].includes(mensaje.mensaje_tipo)) return mensaje;
+  try {
+    let blob: Blob | null = null;
+    try {
+      blob = await leerAdjuntoLocal(Number(mensaje.id));
+    } catch (error) {
+      console.warn("No se pudo leer el almacenamiento local; se descargará el archivo:", error);
+    }
+    if (!blob) {
+      const datos = new URLSearchParams({
+        token: localStorage.getItem("token") || "",
+        mensaje_id: String(mensaje.id),
+      });
+      const respuesta = await fetch(`${apiServidor}/controladores/mensajes_controlador.php?task=obtenerArchivo`, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: datos.toString(),
+        cache: "no-store",
+      });
+      if (!respuesta.ok) throw new Error("No se pudo descargar el archivo del chat.");
+      blob = await respuesta.blob();
+      try {
+        await guardarAdjuntoLocal(Number(mensaje.id), blob, mensaje.archivo_nombre || "archivo");
+      } catch (error) {
+        console.warn("El archivo se verá, pero no pudo guardarse localmente:", error);
+      }
+    }
+    if (!blob) throw new Error("No se recibió el archivo.");
+    const previa = urlsAudioImagen.get(Number(mensaje.id));
+    if (previa) URL.revokeObjectURL(previa);
+    const localUrl = URL.createObjectURL(blob);
+    urlsAudioImagen.set(Number(mensaje.id), localUrl);
+    return { ...mensaje, archivo_local_url: localUrl };
+  } catch (error) {
+    console.warn("No se pudo cachear localmente un adjunto:", error);
+    return { ...mensaje, archivo_local_url: undefined };
+  }
+};
+
+const seleccionarAdjunto = async (evento: Event) => {
+  const input = evento.target as HTMLInputElement;
+  const archivo = input.files?.[0];
+  if (!archivo) return;
+  const extension = archivo.name.split(".").pop()?.toLowerCase() || "";
+  const extensionesImagen = ["jpg", "jpeg", "png", "webp", "gif", "avif"];
+  const extensionesAudio = ["mp3", "m4a", "aac", "ogg", "oga", "webm", "wav", "3gp"];
+  const esImagen = archivo.type.startsWith("image/") || (!archivo.type && extensionesImagen.includes(extension));
+  const esAudio = archivo.type.startsWith("audio/") || (!archivo.type && extensionesAudio.includes(extension));
+  if ((!esImagen && !esAudio) || archivo.size > (esImagen ? 10 : 20) * 1024 * 1024) {
+    const alerta = await alertController.create({
+      mode: "ios",
+      header: "Archivo no válido",
+      message: esImagen || esAudio
+        ? `El archivo supera el límite de ${esImagen ? "10" : "20"} MB.`
+        : "Solo puedes adjuntar imágenes o audios.",
+      buttons: ["OK"],
+    });
+    await alerta.present();
+    input.value = "";
+    return;
+  }
+  nuevoMensaje.value = "";
+  archivoPendiente.value = archivo;
+};
+
+const alternarGrabacionAudio = async () => {
+  if (grabadorAudio.value?.state === "recording") {
+    grabadorAudio.value.stop();
+    return;
+  }
+  try {
+    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
+      throw new Error("Este dispositivo no admite grabación de audio desde la app.");
+    }
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const mime = ["audio/webm;codecs=opus", "audio/ogg;codecs=opus", "audio/mp4"]
+      .find((tipo) => MediaRecorder.isTypeSupported(tipo));
+    const grabador = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
+    nuevoMensaje.value = "";
+    fragmentosAudio = [];
+    grabador.ondataavailable = (evento) => { if (evento.data.size) fragmentosAudio.push(evento.data); };
+    grabador.onstop = async () => {
+      const tipo = grabador.mimeType || "audio/webm";
+      const extension = tipo.includes("ogg") ? "ogg" : tipo.includes("mp4") ? "m4a" : "webm";
+      const partes = fragmentosAudio.filter((parte) => parte.size > 0);
+      const notaDeVoz = new File(partes, `audio-${Date.now()}.${extension}`, { type: tipo });
+      grabadorAudio.value = null;
+      grabandoAudio.value = false;
+      if (intervaloGrabacion) clearInterval(intervaloGrabacion);
+      intervaloGrabacion = null;
+      stream.getTracks().forEach((pista) => pista.stop());
+      if (notaDeVoz.size < 512) {
+        const alerta = await alertController.create({
+          mode: "ios",
+          header: "No se grabó el audio",
+          message: "Mantén la grabación un poco más y vuelve a intentarlo.",
+          buttons: ["OK"],
+        });
+        await alerta.present();
+        return;
+      }
+      archivoPendiente.value = notaDeVoz;
+      await nextTick();
+      await enviarArchivoChat();
+    };
+    grabadorAudio.value = grabador;
+    grabandoAudio.value = true;
+    grabacionSegundos.value = 0;
+    // Emit chunks during recording so WebViews reliably include the final audio data.
+    grabador.start(250);
+    intervaloGrabacion = setInterval(() => { grabacionSegundos.value += 1; }, 1000);
+  } catch (error) {
+    const mensaje = error instanceof Error ? error.message : "No se pudo iniciar la grabación.";
+    const alerta = await alertController.create({ mode: "ios", header: "Audio no disponible", message: mensaje, buttons: ["OK"] });
+    await alerta.present();
+  }
+};
+
+const enviarArchivoChat = async () => {
+  const archivo = archivoPendiente.value;
+  const token = localStorage.getItem("token") || "";
+  const conversacionId = String(route.params.id || "");
+  if (!archivo || !token || !conversacionId || enviandoArchivo.value) return;
+  enviandoArchivo.value = true;
+  try {
+    const datos = new FormData();
+    datos.append("token", token);
+    datos.append("conversacion_id", conversacionId);
+    datos.append("archivo", archivo);
+    const respuesta = await fetch(
+      `${apiServidor}/controladores/mensajes_controlador.php?task=enviarArchivo`,
+      { method: "POST", body: datos, cache: "no-store" },
+    );
+    const resultado = await respuesta.json().catch(() => null);
+    if (!respuesta.ok || !resultado?.ok) throw new Error(resultado?.error || `El servidor rechazó el archivo (HTTP ${respuesta.status}). Revisa el tamaño permitido y la conexión con la API.`);
+    archivoPendiente.value = null;
+    if (entradaAdjunto.value) entradaAdjunto.value.value = "";
+    while (cargandoMensajes) await new Promise((resolve) => setTimeout(resolve, 50));
+    await cargarMensajes(true);
+  } catch (error) {
+    const alerta = await alertController.create({ mode: "ios", header: "No se pudo enviar", message: error instanceof Error ? error.message : "Inténtalo de nuevo.", buttons: ["OK"] });
+    await alerta.present();
+  } finally {
+    enviandoArchivo.value = false;
+  }
+};
+
+const eliminarMensajeParaTodos = async (mensaje: Mensaje) => {
+  const confirmar = await alertController.create({
+    mode: "ios",
+    header: "Eliminar para todos",
+    message: "Se quitará el mensaje y su archivo del chat de ambos usuarios.",
+    buttons: [
+      { text: "Cancelar", role: "cancel" },
+      { text: "Eliminar", role: "destructive" },
+    ],
+  });
+  await confirmar.present();
+  const { role } = await confirmar.onDidDismiss();
+  if (role !== "destructive") return;
+  try {
+    const datos = new URLSearchParams({
+      token: localStorage.getItem("token") || "",
+      mensaje_id: String(mensaje.id),
+    });
+    const respuesta = await fetch(
+      `${apiServidor}/controladores/mensajes_controlador.php?task=eliminarMensajeParaTodos`,
+      { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: datos.toString(), cache: "no-store" },
+    );
+    const resultado = await respuesta.json();
+    if (!respuesta.ok || !resultado.ok) throw new Error(resultado.error || "No se pudo eliminar el mensaje.");
+    await procesarEliminados([mensaje.id]);
+  } catch (error) {
+    const alerta = await alertController.create({ mode: "ios", header: "No se pudo eliminar", message: error instanceof Error ? error.message : "Inténtalo de nuevo.", buttons: ["OK"] });
+    await alerta.present();
+  }
+};
+
+const procesarEliminados = async (ids: number[]) => {
+  const unicos = [...new Set(ids.map(Number))];
+  for (const id of unicos) {
+    const url = urlsAudioImagen.get(id);
+    if (url) URL.revokeObjectURL(url);
+    urlsAudioImagen.delete(id);
+    reproductoresAudio.get(id)?.pause();
+    reproductoresAudio.delete(id);
+    const tiemposRestantes = { ...tiemposAudio.value };
+    delete tiemposRestantes[id];
+    tiemposAudio.value = tiemposRestantes;
+    try { await quitarAdjuntoLocal(id); } catch (error) { console.warn("No se pudo quitar la copia local del adjunto:", error); }
+  }
+  const eliminados = new Set(unicos);
+  mensajes.value = mensajes.value.map((mensaje) => eliminados.has(Number(mensaje.id))
+    ? { ...mensaje, mensaje: "Este mensaje fue eliminado", mensaje_tipo: "eliminado", archivo_url: null, archivo_local_url: null }
+    : mensaje);
+};
+
 const cargarMensajes = async (forzarScroll = false) => {
   // Evita que se encimen peticiones si el servidor tarda más de 2 s
   if (cargandoMensajes) {
@@ -1393,6 +1855,9 @@ const cargarMensajes = async (forzarScroll = false) => {
     const nuevos: Mensaje[] = (resultado.mensajes || []).filter(
       (m: Mensaje) => m.id > ultimoId,
     );
+    const idsEliminados = Array.isArray(resultado.eliminados)
+      ? resultado.eliminados.map(Number)
+      : [];
     const estados: { id: number; estado_mensaje: Mensaje["estado_mensaje"] }[] =
       resultado.estados || [];
 
@@ -1400,8 +1865,11 @@ const cargarMensajes = async (forzarScroll = false) => {
     const estabaAbajo = await estaCercaDelFinal();
 
     if (nuevos.length > 0) {
-      mensajes.value = [...mensajes.value, ...nuevos];
+      const adjuntosPreparados = await Promise.all(nuevos.map(prepararAdjunto));
+      mensajes.value = [...mensajes.value, ...adjuntosPreparados];
     }
+
+    if (idsEliminados.length > 0) await procesarEliminados(idsEliminados);
 
     if (estados.length > 0) {
       const mapa = new Map(
@@ -1430,6 +1898,9 @@ const cargarMensajes = async (forzarScroll = false) => {
 };
 
 const cargarConversacion = async () => {
+  for (const url of urlsAudioImagen.values()) URL.revokeObjectURL(url);
+  urlsAudioImagen.clear();
+  archivoPendiente.value = null;
   contacto.value = {
     id: 0,
     nombre: "Chat",
@@ -1559,6 +2030,8 @@ onIonViewDidLeave(() => {
     clearInterval(intervaloLlamadas);
     intervaloLlamadas = null;
   }
+
+  if (grabadorAudio.value?.state === "recording") grabadorAudio.value.stop();
 });
 
 onUnmounted(() => {
@@ -1576,6 +2049,15 @@ onUnmounted(() => {
   detenerContador();
 
   cerrarConexionWebRTC();
+  if (intervaloGrabacion) {
+    clearInterval(intervaloGrabacion);
+    intervaloGrabacion = null;
+  }
+  if (grabadorAudio.value?.state === "recording") grabadorAudio.value.stop();
+  for (const audio of reproductoresAudio.values()) audio.pause();
+  reproductoresAudio.clear();
+  for (const url of urlsAudioImagen.values()) URL.revokeObjectURL(url);
+  urlsAudioImagen.clear();
 });
 </script>
 
@@ -1756,6 +2238,119 @@ onUnmounted(() => {
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.22);
 }
 
+.burbuja-media {
+  flex-direction: column;
+}
+
+.media-imagen {
+  display: block;
+  width: min(64vw, 320px);
+  max-height: 360px;
+  object-fit: contain;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.12);
+}
+
+.media-audio {
+  display: none;
+}
+
+.audio-elemento-oculto {
+  position: fixed;
+  left: -10000px;
+  bottom: 0;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.reproductor-audio {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: min(68vw, 320px);
+  min-width: 225px;
+  padding: 2px 0;
+}
+
+.audio-play {
+  flex: 0 0 42px;
+  width: 42px;
+  height: 42px;
+  margin: 0;
+  --color: #ffffff;
+  --background: rgba(255, 255, 255, 0.16);
+  --border-radius: 50%;
+}
+
+.audio-play ion-icon {
+  font-size: 24px;
+}
+
+.audio-detalles {
+  flex: 1;
+  min-width: 0;
+}
+
+.onda-audio {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 2px;
+  height: 27px;
+  cursor: pointer;
+}
+
+.onda-audio i {
+  flex: 1;
+  min-width: 2px;
+  max-width: 4px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.48);
+}
+
+.onda-audio i.activa {
+  background: #ffffff;
+}
+
+.audio-tiempo {
+  display: flex;
+  justify-content: space-between;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 10px;
+  line-height: 13px;
+}
+
+.estado-grabacion {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #fecdd3;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.estado-grabacion i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #fb7185;
+  animation: pulso-grabacion 1s infinite;
+}
+
+@keyframes pulso-grabacion {
+  50% { opacity: 0.35; }
+}
+
+.eliminar-mensaje {
+  align-self: flex-end;
+  width: 26px;
+  height: 25px;
+  margin: -3px -5px -4px 0;
+  --color: rgba(255, 255, 255, 0.7);
+}
+
 .mensaje-yo .burbuja {
   background: rgba(16, 185, 129, 0.72);
   border-top-right-radius: 4px;
@@ -1797,6 +2392,7 @@ onUnmounted(() => {
 
 .barra-mensaje {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
   padding: 8px 10px;
@@ -1804,6 +2400,38 @@ onUnmounted(() => {
   border-top: 1px solid rgba(255, 255, 255, 0.08);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
+}
+
+.entrada-adjunto {
+  display: none;
+}
+
+.adjunto-pendiente {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  padding: 5px 10px;
+  color: #cbd5e1;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 10px;
+  font-size: 12px;
+}
+
+.adjunto-pendiente span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.boton-adjunto {
+  flex-shrink: 0;
+  margin: 0;
+  --color: #94a3b8;
+}
+
+.boton-adjunto.grabando-audio {
+  --color: #fb7185;
 }
 
 .barra-mensaje ion-input {

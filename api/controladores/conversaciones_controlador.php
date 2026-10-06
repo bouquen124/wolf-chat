@@ -10,6 +10,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 }
 
 include_once("../config/database.php");
+require_once __DIR__ . '/../config/tareas_programadas.php';
+ejecutarTareasProgramadasEnPeticion($pdo);
 include_once("../clases/conversaciones.class.php");
 
 switch ($_GET['task']) {

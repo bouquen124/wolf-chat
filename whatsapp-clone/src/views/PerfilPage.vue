@@ -89,6 +89,7 @@
                 <p>✓ Foto: {{ etiquetaPrivacidad(privacidad.foto_perfil) }} · Info: {{ etiquetaPrivacidad(privacidad.descripcion) }}</p>
                 <p>✓ Historias: {{ etiquetaPrivacidad(privacidad.estados) }}</p>
                 <p>✓ Últ. conexión: {{ etiquetaPrivacidad(privacidad.ultima_conexion) }}</p>
+                <p>✓ Excepciones por contacto: {{ restriccionesPorContacto.length }}</p>
               </ion-label>
 
               <ion-icon
@@ -277,6 +278,7 @@ const privacidad = ref<PrivacidadPerfil>({
   ultima_conexion: "contactos",
   contactos_estados: [],
 });
+const restriccionesPorContacto = ref<any[]>([]);
 const preferenciasNotificaciones = ref<PreferenciasNotificaciones>({
   privados: true,
   grupos: true,
@@ -364,6 +366,24 @@ const cargarPrivacidad = async () => {
   }
 };
 
+const cargarRestriccionesPorContacto = async () => {
+  const token = localStorage.getItem("token") || "";
+  if (!token) return;
+  try {
+    const datos = new URLSearchParams({ token });
+    const respuesta = await fetch(
+      "http://localhost/new%20app/api/controladores/usuarios_controlador.php?task=obtenerRestriccionesContactos",
+      { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: datos.toString(), cache: "no-store" },
+    );
+    const resultado = await respuesta.json();
+    if (respuesta.ok && resultado.ok) {
+      restriccionesPorContacto.value = Array.isArray(resultado.restricciones) ? resultado.restricciones : [];
+    }
+  } catch (error) {
+    console.error("No se pudieron cargar las excepciones de privacidad:", error);
+  }
+};
+
 const cargarPreferenciasNotificaciones = async () => {
   const token = localStorage.getItem("token") || "";
   if (!token) return;
@@ -385,6 +405,7 @@ const cargarPreferenciasNotificaciones = async () => {
 onIonViewWillEnter(() => {
   cargarUsuario();
   void cargarPrivacidad();
+  void cargarRestriccionesPorContacto();
   void cargarPreferenciasNotificaciones();
 });
 
@@ -451,6 +472,7 @@ const editarNotificaciones = async () => {
 };
 
 const editarPrivacidad = async () => {
+  await cargarRestriccionesPorContacto();
   const seccion = await actionSheetController.create({
     mode: "ios",
     header: "Ajustes de privacidad",
@@ -459,10 +481,151 @@ const editarPrivacidad = async () => {
       { text: "Descripción", handler: () => void seleccionarVisibilidad("descripcion", "tu descripción") },
       { text: "Última conexión", handler: () => void seleccionarVisibilidad("ultima_conexion", "tu última conexión") },
       { text: "Historias", handler: () => void seleccionarPrivacidadHistorias() },
+      {
+        text: `Privacidad por contacto (${restriccionesPorContacto.value.length})`,
+        handler: () => void abrirGestionPrivacidadContactos(),
+      },
       { text: "Cancelar", role: "cancel" },
     ],
   });
   await seccion.present();
+};
+
+const nombreDeRestriccion = (item: any) =>
+  `${item.nombre_personalizado || item.nombre || "Contacto"} ${item.apellido || ""}`.trim();
+
+const resumenDeRestriccion = (item: any) => {
+  const ocultos = [
+    Number(item.ocultar_estados) ? "historias" : "",
+    Number(item.ocultar_foto) ? "foto" : "",
+    Number(item.ocultar_descripcion) ? "info" : "",
+    Number(item.ocultar_ultima_conexion) ? "últ. conexión" : "",
+  ].filter(Boolean);
+  return ocultos.join(", ");
+};
+
+const abrirGestionPrivacidadContactos = async () => {
+  await cargarRestriccionesPorContacto();
+  const botones = restriccionesPorContacto.value.map((item) => ({
+    text: `${nombreDeRestriccion(item)} · ${resumenDeRestriccion(item)}`,
+    handler: () => void editarRestriccionesContacto(Number(item.contacto_id), nombreDeRestriccion(item)),
+  }));
+  botones.push({
+    text: "Configurar otro contacto…",
+    handler: () => void seleccionarContactoRestriccion(),
+  });
+  botones.push({ text: "Cancelar", role: "cancel" } as any);
+
+  const lista = await actionSheetController.create({
+    mode: "ios",
+    header: "Privacidad por contacto",
+    buttons: botones,
+  });
+  await lista.present();
+};
+
+const seleccionarContactoRestriccion = async () => {
+  const token = localStorage.getItem("token") || "";
+  if (!token) return;
+  try {
+    const datos = new URLSearchParams({ token });
+    const respuesta = await fetch(
+      "http://localhost/new%20app/api/controladores/contactos_controlador.php?task=obtenerContactos",
+      { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: datos.toString(), cache: "no-store" },
+    );
+    const resultado = await respuesta.json();
+    if (!respuesta.ok || !resultado.ok) throw new Error(resultado.error || "No se pudieron cargar los contactos.");
+    const contactos = Array.isArray(resultado.contactos) ? resultado.contactos : [];
+    if (!contactos.length) {
+      await mostrarAlerta("Sin contactos", "Agrega un contacto antes de configurar excepciones.");
+      return;
+    }
+
+    let seleccionado = 0;
+    const selector = await alertController.create({
+      mode: "ios",
+      header: "Elige un contacto",
+      inputs: contactos.map((contacto: any) => ({
+        type: "radio" as const,
+        label: `${contacto.nombre_personalizado || contacto.nombre || ""} ${contacto.apellido || ""}`.trim() || contacto.telefono || `Contacto ${contacto.contacto_id}`,
+        value: Number(contacto.contacto_id),
+      })),
+      buttons: [
+        { text: "Cancelar", role: "cancel" },
+        { text: "Continuar", role: "confirm", handler: (valor: number) => { seleccionado = Number(valor) || 0; } },
+      ],
+    });
+    await selector.present();
+    const { role } = await selector.onDidDismiss();
+    if (role !== "confirm" || !seleccionado) return;
+    const contacto = contactos.find((item: any) => Number(item.contacto_id) === seleccionado);
+    const nombre = contacto
+      ? `${contacto.nombre_personalizado || contacto.nombre || ""} ${contacto.apellido || ""}`.trim()
+      : "Contacto";
+    await editarRestriccionesContacto(seleccionado, nombre);
+  } catch (error) {
+    console.error("No se pudo abrir la privacidad por contacto:", error);
+    await mostrarAlerta("No se pudo cargar", error instanceof Error ? error.message : "Inténtalo de nuevo.");
+  }
+};
+
+const editarRestriccionesContacto = async (contactoId: number, nombre: string) => {
+  const token = localStorage.getItem("token") || "";
+  if (!token) return;
+  try {
+    const consulta = new URLSearchParams({ token, contacto_id: String(contactoId) });
+    const respuesta = await fetch(
+      "http://localhost/new%20app/api/controladores/usuarios_controlador.php?task=obtenerRestriccionesContacto",
+      { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: consulta.toString(), cache: "no-store" },
+    );
+    const datos = await respuesta.json();
+    if (!respuesta.ok || !datos.ok) throw new Error(datos.error || "No se pudieron cargar las preferencias.");
+    const actual = datos.restricciones || {};
+    const alerta = await alertController.create({
+      mode: "ios",
+      header: `Privacidad: ${nombre}`,
+      message: `Elige qué no podrá ver ${nombre}.`,
+      inputs: [
+        { type: "checkbox", label: "Mis historias", value: "estados", checked: Boolean(Number(actual.ocultar_estados)) },
+        { type: "checkbox", label: "Mi foto de perfil", value: "foto", checked: Boolean(Number(actual.ocultar_foto)) },
+        { type: "checkbox", label: "Mi información", value: "descripcion", checked: Boolean(Number(actual.ocultar_descripcion)) },
+        { type: "checkbox", label: "Mi última conexión", value: "ultima_conexion", checked: Boolean(Number(actual.ocultar_ultima_conexion)) },
+      ],
+      buttons: [
+        { text: "Cancelar", role: "cancel" },
+        {
+          text: "Guardar",
+          role: "confirm",
+          handler: async (seleccion: string[]) => {
+            try {
+              const formulario = new URLSearchParams({
+                token,
+                contacto_id: String(contactoId),
+                ocultar_estados: seleccion.includes("estados") ? "1" : "0",
+                ocultar_foto: seleccion.includes("foto") ? "1" : "0",
+                ocultar_descripcion: seleccion.includes("descripcion") ? "1" : "0",
+                ocultar_ultima_conexion: seleccion.includes("ultima_conexion") ? "1" : "0",
+              });
+              const guardar = await fetch(
+                "http://localhost/new%20app/api/controladores/usuarios_controlador.php?task=guardarRestriccionesContacto",
+                { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: formulario.toString() },
+              );
+              const confirmacion = await guardar.json();
+              if (!guardar.ok || !confirmacion.ok) throw new Error(confirmacion.error || "No se pudieron guardar los cambios.");
+            } catch (error) {
+              await mostrarAlerta("No se pudo guardar", error instanceof Error ? error.message : "Inténtalo de nuevo.");
+            }
+          },
+        },
+      ],
+    });
+    await alerta.present();
+    await alerta.onDidDismiss();
+    await cargarRestriccionesPorContacto();
+  } catch (error) {
+    console.error("No se pudo editar la privacidad del contacto:", error);
+    await mostrarAlerta("No se pudo cargar", error instanceof Error ? error.message : "Inténtalo de nuevo.");
+  }
 };
 
 const seleccionarVisibilidad = async (

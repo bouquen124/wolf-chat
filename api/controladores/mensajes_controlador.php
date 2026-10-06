@@ -11,6 +11,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS')
 }
 
 include_once("../config/database.php");
+require_once __DIR__ . '/../config/tareas_programadas.php';
+ejecutarTareasProgramadasEnPeticion($pdo);
 include_once("../clases/mensajes.class.php");
 
 switch ($_GET['task'])
@@ -20,6 +22,21 @@ switch ($_GET['task'])
         $reg = new mensajes($pdo);
         $reg->enviarMensaje($_POST, $_GET);
 
+        break;
+
+    case "enviarArchivo":
+        $reg = new mensajes($pdo);
+        $reg->enviarArchivo($_POST, $_GET);
+        break;
+
+    case "eliminarMensajeParaTodos":
+        $reg = new mensajes($pdo);
+        $reg->eliminarMensajeParaTodos($_POST, $_GET);
+        break;
+
+    case "obtenerArchivo":
+        $reg = new mensajes($pdo);
+        $reg->obtenerArchivoAdjunto($_POST, $_GET);
         break;
 
     case "obtenerMensajes":

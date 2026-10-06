@@ -67,6 +67,17 @@
           </div>
         </ion-list>
 
+        <section v-if="estadosProgramados.length" class="seccion-programados">
+          <h3>Historias programadas</h3>
+          <article v-for="item in estadosProgramados" :key="item.id" class="programado-item">
+            <div>
+              <strong>{{ item.tipo === 'texto' ? (item.contenido || 'Historia de texto') : item.nombre_original }}</strong>
+              <small>{{ formatearFecha(item.programar_en) }} · {{ item.duracion_horas }} h{{ Number(item.repetir_semanal) ? ' · Semanal' : '' }}</small>
+            </div>
+            <ion-button fill="clear" color="danger" :disabled="publicando" @click="cancelarProgramado(item.id)">Cancelar</ion-button>
+          </article>
+        </section>
+
         <!-- SECCIÓN HISTORIAS DE LOS DEMÁS (EXCLUYE SIEMPRE MI USUARIO) -->
         <div class="seccion-historias" v-if="historiasNoVistas.length">
           <h3>Historias recientes</h3>
@@ -132,14 +143,14 @@
               </ion-button>
             </ion-buttons>
 
-            <ion-title>Nueva historia</ion-title>
+            <ion-title>{{ archivoSeleccionado ? 'Nueva historia multimedia' : 'Nueva historia' }}</ion-title>
 
             <ion-buttons slot="end">
               <ion-button
-                :disabled="publicando || !contenidoHistoria.trim()"
+                :disabled="publicando || (!contenidoHistoria.trim() && !archivoSeleccionado) || (programarHistoria && !fechaHoraProgramada)"
                 @click="publicarHistoria"
               >
-                {{ publicando ? "Publicando..." : "Publicar" }}
+                {{ publicando ? "Guardando..." : programarHistoria ? "Programar" : "Publicar" }}
               </ion-button>
             </ion-buttons>
           </ion-toolbar>
@@ -148,14 +159,26 @@
         <ion-content class="modal-historia">
           <div class="contenido-modal">
             <ion-item class="campo-historia" lines="none">
-              <ion-textarea
+              <ion-textarea v-if="!archivoSeleccionado"
                 v-model="contenidoHistoria"
                 placeholder="Escribe una actualización..."
                 :auto-grow="true"
                 :rows="6"
                 maxlength="700"
               ></ion-textarea>
+              <div v-else class="archivo-seleccionado">{{ archivoSeleccionado.name }}</div>
             </ion-item>
+            <ion-item lines="none">
+              <ion-label>Programar publicación</ion-label>
+              <ion-toggle v-model="programarHistoria" />
+            </ion-item>
+            <template v-if="programarHistoria">
+              <ion-item lines="none"><ion-label position="stacked">Fecha y hora</ion-label><ion-input v-model="fechaHoraProgramada" type="datetime-local" /></ion-item>
+              <ion-item lines="none"><ion-label position="stacked">Duración (24 a 168 horas)</ion-label><ion-input v-model.number="duracionHoras" type="number" min="24" max="168" /></ion-item>
+              <ion-item lines="none"><ion-label>Repetir semanalmente</ion-label><ion-toggle v-model="repetirSemanal" /></ion-item>
+              <ion-item v-if="repetirSemanal" lines="none"><ion-label position="stacked">Repetir hasta</ion-label><ion-input v-model="repetirHasta" type="date" /></ion-item>
+              <p v-if="repetirSemanal" class="ayuda-programacion">Se repetirá el mismo día y hora cada semana hasta la fecha indicada.</p>
+            </template>
           </div>
         </ion-content>
       </ion-modal>
@@ -180,6 +203,8 @@ import {
   IonButtons,
   IonButton,
   IonTextarea,
+  IonInput,
+  IonToggle,
   IonIcon,
   onIonViewDidLeave,
   onIonViewWillEnter,
@@ -229,6 +254,13 @@ const miUsuarioId = ref<number | null>(obtenerMiUsuarioId());
 const mostrarModal = ref(false);
 const contenidoHistoria = ref("");
 const publicando = ref(false);
+const archivoSeleccionado = ref<File | null>(null);
+const programarHistoria = ref(false);
+const fechaHoraProgramada = ref("");
+const duracionHoras = ref(24);
+const repetirSemanal = ref(false);
+const repetirHasta = ref("");
+const estadosProgramados = ref<any[]>([]);
 const entradaArchivo = ref<HTMLInputElement | null>(null);
 let intervaloActualizacion: ReturnType<typeof setInterval> | null = null;
 let cargandoHistorias = false;
@@ -397,6 +429,7 @@ const cargarTodo = async () => {
     // Primero mis historias para obtener mi usuario_id; después las de contactos.
     await cargarMisHistorias();
     await cargarHistoriasOtros();
+    await cargarProgramados();
   } finally {
     cargandoHistorias = false;
   }
@@ -426,14 +459,49 @@ const abrirHistoria = (grupo: any) => {
 
 const agregarHistoria = () => {
   contenidoHistoria.value = "";
+  archivoSeleccionado.value = null;
+  programarHistoria.value = false;
+  fechaHoraProgramada.value = "";
+  duracionHoras.value = 24;
+  repetirSemanal.value = false;
+  repetirHasta.value = "";
   mostrarModal.value = true;
+};
+
+const cargarProgramados = async () => {
+  try {
+    const body = new URLSearchParams({ token });
+    const respuesta = await fetch("http://localhost/new%20app/api/controladores/estados_controlador.php?task=obtenerProgramados", {
+      method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: body.toString(), cache: "no-store",
+    });
+    const data = await respuesta.json();
+    estadosProgramados.value = data.ok && Array.isArray(data.programados) ? data.programados : [];
+  } catch (error) {
+    console.error("Error al cargar las historias programadas:", error);
+  }
+};
+
+const formatearFecha = (valor: string) => new Date(valor.replace(" ", "T")).toLocaleString();
+
+const cancelarProgramado = async (id: number) => {
+  try {
+    const body = new URLSearchParams({ token, programado_id: String(id) });
+    const respuesta = await fetch("http://localhost/new%20app/api/controladores/estados_controlador.php?task=cancelarProgramado", {
+      method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: body.toString(),
+    });
+    const data = await respuesta.json();
+    if (!data.ok) throw new Error(data.error || "No se pudo cancelar la programación.");
+    await cargarProgramados();
+  } catch (error: any) {
+    window.alert(error.message || "No se pudo cancelar la programación.");
+  }
 };
 
 const seleccionarArchivo = () => {
   entradaArchivo.value?.click();
 };
 
-const publicarArchivo = async (evento: Event) => {
+const publicarArchivo = (evento: Event) => {
   const input = evento.target as HTMLInputElement;
   const archivo = input.files?.[0];
   if (!archivo || publicando.value) return;
@@ -454,29 +522,13 @@ const publicarArchivo = async (evento: Event) => {
     return;
   }
 
-  publicando.value = true;
-  try {
-    const formData = new FormData();
-    formData.append("token", token);
-    formData.append("tipo", esVideo ? "video" : "imagen");
-    formData.append("archivo", archivo);
-
-    const respuesta = await fetch(
-      "http://localhost/new%20app/api/controladores/estados_controlador.php?task=crearEstado",
-      { method: "POST", body: formData },
-    );
-    const data = await respuesta.json();
-    if (!data.ok)
-      throw new Error(data.error || "No se pudo publicar el archivo.");
-
-    await cargarTodo();
-  } catch (error: any) {
-    console.error("Error al publicar estado multimedia:", error);
-    window.alert(error.message || "No se pudo publicar el archivo.");
-  } finally {
-    publicando.value = false;
-    input.value = "";
-  }
+  archivoSeleccionado.value = archivo;
+  contenidoHistoria.value = "";
+  programarHistoria.value = false;
+  duracionHoras.value = 24;
+  repetirSemanal.value = false;
+  mostrarModal.value = true;
+  input.value = "";
 };
 
 const cerrarModal = () => {
@@ -486,32 +538,55 @@ const cerrarModal = () => {
 
   mostrarModal.value = false;
   contenidoHistoria.value = "";
+  archivoSeleccionado.value = null;
+  programarHistoria.value = false;
+  fechaHoraProgramada.value = "";
+  duracionHoras.value = 24;
+  repetirSemanal.value = false;
+  repetirHasta.value = "";
 };
 
 const publicarHistoria = async () => {
   const contenido = contenidoHistoria.value.trim();
+  const archivo = archivoSeleccionado.value;
 
-  if (!contenido || publicando.value) {
+  if ((!contenido && !archivo) || publicando.value) {
+    return;
+  }
+  if (programarHistoria.value && !fechaHoraProgramada.value) {
+    window.alert("Elige fecha y hora para publicar.");
+    return;
+  }
+  if (programarHistoria.value && (!Number.isInteger(Number(duracionHoras.value)) || duracionHoras.value < 24 || duracionHoras.value > 168)) {
+    window.alert("La duración debe ser de 24 a 168 horas.");
+    return;
+  }
+  if (programarHistoria.value && repetirSemanal.value && !repetirHasta.value) {
+    window.alert("Elige hasta qué fecha se repetirá.");
     return;
   }
 
   publicando.value = true;
 
   try {
-    const formData = new URLSearchParams();
+    const formData = new FormData();
     formData.append("token", token);
-    formData.append("tipo", "texto");
-    formData.append("contenido", contenido);
+    formData.append("tipo", archivo ? (archivo.type.startsWith("video/") ? "video" : "imagen") : "texto");
+    if (contenido) formData.append("contenido", contenido);
+    if (archivo) formData.append("archivo", archivo);
+    if (programarHistoria.value) {
+      const fecha = new Date(fechaHoraProgramada.value);
+      if (Number.isNaN(fecha.getTime()) || fecha.getTime() <= Date.now()) throw new Error("Elige una fecha y hora futuras.");
+      formData.append("programar", "1");
+      formData.append("fechas_programadas", JSON.stringify([fechaHoraProgramada.value.replace("T", " ") + ":00"]));
+      formData.append("duracion_horas", String(duracionHoras.value));
+      formData.append("repetir_semanal", repetirSemanal.value ? "1" : "0");
+      if (repetirSemanal.value) formData.append("repetir_hasta", repetirHasta.value);
+    }
 
     const respuesta = await fetch(
       "http://localhost/new%20app/api/controladores/estados_controlador.php?task=crearEstado",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
-        },
-        body: formData.toString(),
-      },
+      { method: "POST", body: formData },
     );
 
     const data = await respuesta.json();
@@ -523,13 +598,20 @@ const publicarHistoria = async () => {
 
     mostrarModal.value = false;
     contenidoHistoria.value = "";
+    archivoSeleccionado.value = null;
+    const fueProgramada = programarHistoria.value;
+    programarHistoria.value = false;
+    fechaHoraProgramada.value = "";
+    duracionHoras.value = 24;
+    repetirSemanal.value = false;
+    repetirHasta.value = "";
 
     await cargarTodo();
 
-    window.alert("Historia publicada.");
-  } catch (error) {
+    window.alert(fueProgramada ? "Historia programada." : "Historia publicada.");
+  } catch (error: any) {
     console.error("Error al publicar historia:", error);
-    window.alert("No se pudo publicar la historia.");
+    window.alert(error.message || "No se pudo publicar la historia.");
   } finally {
     publicando.value = false;
   }
@@ -745,6 +827,14 @@ ion-content {
   font-size: 12px;
   height: 32px;
 }
+
+.seccion-programados { margin: 22px 4px 0; }
+.seccion-programados h3 { color: #fff; font-size: 15px; font-weight: 650; }
+.programado-item { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin: 8px 0; padding: 10px 12px; border-radius: 14px; background: rgba(255,255,255,.05); color: #fff; }
+.programado-item div { min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+.programado-item strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.programado-item small, .ayuda-programacion { color: #8993a5; }
+.archivo-seleccionado { padding: 14px; color: #fff; overflow-wrap: anywhere; }
 
 .seccion-historias {
   margin-top: 24px;
