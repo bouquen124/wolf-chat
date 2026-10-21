@@ -187,7 +187,7 @@ const cargarEventos = async () => {
     datos.append("mes", String(mes.value + 1));
 
     const respuesta = await fetch(
-      "http://localhost/new%20app/api/controladores/calendario_controlador.php?task=obtenerEventos",
+      "https://eqtc5661rodrigo.tail4cd307.ts.net/controladores/calendario_controlador.php?task=obtenerEventos",
       {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -364,7 +364,7 @@ const agregarEvento = async () => {
     datos.append("color", "#6366f1");
 
     const respuesta = await fetch(
-      "http://localhost/new%20app/api/controladores/calendario_controlador.php?task=crearEvento",
+      "https://eqtc5661rodrigo.tail4cd307.ts.net/controladores/calendario_controlador.php?task=crearEvento",
       {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -409,7 +409,7 @@ const eliminarEvento = async (evento: Evento) => {
     datos.append("evento_id", String(evento.id));
 
     const respuesta = await fetch(
-      "http://localhost/new%20app/api/controladores/calendario_controlador.php?task=eliminarEvento",
+      "https://eqtc5661rodrigo.tail4cd307.ts.net/controladores/calendario_controlador.php?task=eliminarEvento",
       {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },

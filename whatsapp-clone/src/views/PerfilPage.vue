@@ -351,7 +351,7 @@ const cargarPrivacidad = async () => {
     const datos = new URLSearchParams();
     datos.append("token", token);
     const respuesta = await fetch(
-      "http://localhost/new%20app/api/controladores/usuarios_controlador.php?task=obtenerPrivacidad",
+      "https://eqtc5661rodrigo.tail4cd307.ts.net/controladores/usuarios_controlador.php?task=obtenerPrivacidad",
       {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -372,7 +372,7 @@ const cargarRestriccionesPorContacto = async () => {
   try {
     const datos = new URLSearchParams({ token });
     const respuesta = await fetch(
-      "http://localhost/new%20app/api/controladores/usuarios_controlador.php?task=obtenerRestriccionesContactos",
+      "https://eqtc5661rodrigo.tail4cd307.ts.net/controladores/usuarios_controlador.php?task=obtenerRestriccionesContactos",
       { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: datos.toString(), cache: "no-store" },
     );
     const resultado = await respuesta.json();
@@ -390,7 +390,7 @@ const cargarPreferenciasNotificaciones = async () => {
   try {
     const datos = new URLSearchParams({ token });
     const respuesta = await fetch(
-      "http://localhost/new%20app/api/controladores/notificaciones_controlador.php?task=obtenerPreferencias",
+      "https://eqtc5661rodrigo.tail4cd307.ts.net/controladores/notificaciones_controlador.php?task=obtenerPreferencias",
       { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: datos.toString(), cache: "no-store" },
     );
     const resultado = await respuesta.json();
@@ -456,7 +456,7 @@ const editarNotificaciones = async () => {
     datos.append("grupos", seleccionadas.includes("grupos") ? "1" : "0");
     datos.append("estados", seleccionadas.includes("estados") ? "1" : "0");
     const respuesta = await fetch(
-      "http://localhost/new%20app/api/controladores/notificaciones_controlador.php?task=guardarPreferencias",
+      "https://eqtc5661rodrigo.tail4cd307.ts.net/controladores/notificaciones_controlador.php?task=guardarPreferencias",
       { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: datos.toString() },
     );
     const resultado = await respuesta.json();
@@ -530,7 +530,7 @@ const seleccionarContactoRestriccion = async () => {
   try {
     const datos = new URLSearchParams({ token });
     const respuesta = await fetch(
-      "http://localhost/new%20app/api/controladores/contactos_controlador.php?task=obtenerContactos",
+      "https://eqtc5661rodrigo.tail4cd307.ts.net/controladores/contactos_controlador.php?task=obtenerContactos",
       { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: datos.toString(), cache: "no-store" },
     );
     const resultado = await respuesta.json();
@@ -575,7 +575,7 @@ const editarRestriccionesContacto = async (contactoId: number, nombre: string) =
   try {
     const consulta = new URLSearchParams({ token, contacto_id: String(contactoId) });
     const respuesta = await fetch(
-      "http://localhost/new%20app/api/controladores/usuarios_controlador.php?task=obtenerRestriccionesContacto",
+      "https://eqtc5661rodrigo.tail4cd307.ts.net/controladores/usuarios_controlador.php?task=obtenerRestriccionesContacto",
       { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: consulta.toString(), cache: "no-store" },
     );
     const datos = await respuesta.json();
@@ -607,7 +607,7 @@ const editarRestriccionesContacto = async (contactoId: number, nombre: string) =
                 ocultar_ultima_conexion: seleccion.includes("ultima_conexion") ? "1" : "0",
               });
               const guardar = await fetch(
-                "http://localhost/new%20app/api/controladores/usuarios_controlador.php?task=guardarRestriccionesContacto",
+                "https://eqtc5661rodrigo.tail4cd307.ts.net/controladores/usuarios_controlador.php?task=guardarRestriccionesContacto",
                 { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: formulario.toString() },
               );
               const confirmacion = await guardar.json();
@@ -678,7 +678,7 @@ const guardarPrivacidadEnServidor = async (token: string, ajustes: PrivacidadPer
   datos.append("contactos_estados", JSON.stringify(ajustes.contactos_estados || []));
 
   const respuesta = await fetch(
-    "http://localhost/new%20app/api/controladores/usuarios_controlador.php?task=guardarPrivacidad",
+    "https://eqtc5661rodrigo.tail4cd307.ts.net/controladores/usuarios_controlador.php?task=guardarPrivacidad",
     {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -731,7 +731,7 @@ const elegirContactosHistorias = async (
     const formulario = new URLSearchParams();
     formulario.append("token", token);
     const respuestaContactos = await fetch(
-      "http://localhost/new%20app/api/controladores/contactos_controlador.php?task=obtenerContactos",
+      "https://eqtc5661rodrigo.tail4cd307.ts.net/controladores/contactos_controlador.php?task=obtenerContactos",
       {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -859,7 +859,7 @@ const editarPerfil = async () => {
     datos.append("descripcion", descripcion);
 
     const respuesta = await fetch(
-      "http://localhost/new%20app/api/controladores/usuarios_controlador.php?task=actualizarPerfil",
+      "https://eqtc5661rodrigo.tail4cd307.ts.net/controladores/usuarios_controlador.php?task=actualizarPerfil",
       {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -909,7 +909,7 @@ const subirFotoPerfil = async (evento: Event) => {
     datos.append("foto", archivo);
 
     const respuesta = await fetch(
-      "http://localhost/new%20app/api/controladores/usuarios_controlador.php?task=actualizarFotoPerfil",
+      "https://eqtc5661rodrigo.tail4cd307.ts.net/controladores/usuarios_controlador.php?task=actualizarFotoPerfil",
       { method: "POST", body: datos },
     );
     const resultado = await respuesta.json();
@@ -1076,7 +1076,7 @@ const cerrarSesion = async () => {
     const datos = new URLSearchParams();
     datos.append("token", token);
     await fetch(
-      "http://localhost/new%20app/api/controladores/usuarios_controlador.php?task=cerrarSesion",
+      "https://eqtc5661rodrigo.tail4cd307.ts.net/controladores/usuarios_controlador.php?task=cerrarSesion",
       {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },

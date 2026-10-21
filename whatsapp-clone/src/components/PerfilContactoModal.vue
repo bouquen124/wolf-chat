@@ -94,7 +94,7 @@ const configurarPrivacidad = async () => {
   try {
     const consultar = new URLSearchParams({ token, contacto_id: String(contactoId) });
     const respuesta = await fetch(
-      "http://localhost/new%20app/api/controladores/usuarios_controlador.php?task=obtenerRestriccionesContacto",
+      "https://eqtc5661rodrigo.tail4cd307.ts.net/controladores/usuarios_controlador.php?task=obtenerRestriccionesContacto",
       { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: consultar.toString(), cache: "no-store" },
     );
     const datos = await respuesta.json();
@@ -127,7 +127,7 @@ const configurarPrivacidad = async () => {
                 ocultar_ultima_conexion: seleccion.includes("ultima_conexion") ? "1" : "0",
               });
               const guardar = await fetch(
-                "http://localhost/new%20app/api/controladores/usuarios_controlador.php?task=guardarRestriccionesContacto",
+                "https://eqtc5661rodrigo.tail4cd307.ts.net/controladores/usuarios_controlador.php?task=guardarRestriccionesContacto",
                 { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: datosGuardar.toString() },
               );
               const resultado = await guardar.json();

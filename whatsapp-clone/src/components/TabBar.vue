@@ -76,7 +76,7 @@ const cargarMensajesPendientes = async () => {
       body: datos.toString(),
       cache: 'no-store' as RequestCache,
     };
-    const base = 'http://localhost/new%20app/api/controladores/conversaciones_controlador.php?task=';
+    const base = 'https://eqtc5661rodrigo.tail4cd307.ts.net/controladores/conversaciones_controlador.php?task=';
     const [respuestaChats, respuestaGrupos] = await Promise.all([
       fetch(`${base}obtenerChats`, opciones),
       fetch(`${base}obtenerGrupos`, opciones),

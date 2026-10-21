@@ -143,7 +143,7 @@ const buscarUsuario = async () => {
     const formularioUsuarios = new URLSearchParams();
     formularioUsuarios.append("token", token);
     const respuesta = await fetch(
-      "http://localhost/new%20app/api/controladores/usuarios_controlador.php?task=getUsuarios",
+      "https://eqtc5661rodrigo.tail4cd307.ts.net/controladores/usuarios_controlador.php?task=getUsuarios",
       {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -174,7 +174,7 @@ const buscarUsuario = async () => {
     datosContactos.append("token", token);
 
     const respuestaContactos = await fetch(
-      "http://localhost/new%20app/api/controladores/contactos_controlador.php?task=obtenerContactos",
+      "https://eqtc5661rodrigo.tail4cd307.ts.net/controladores/contactos_controlador.php?task=obtenerContactos",
       {
         method: "POST",
         headers: {
@@ -227,7 +227,7 @@ const agregarContacto = async () => {
     datos.append("contacto_id", usuario.value.id.toString());
 
     const respuesta = await fetch(
-      "http://localhost/new%20app/api/controladores/contactos_controlador.php?task=agregarContacto",
+      "https://eqtc5661rodrigo.tail4cd307.ts.net/controladores/contactos_controlador.php?task=agregarContacto",
       {
         method: "POST",
         headers: {

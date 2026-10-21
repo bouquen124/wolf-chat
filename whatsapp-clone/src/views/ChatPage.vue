@@ -232,7 +232,7 @@ interface LlamadaEntrante {
 }
 
 const route = useRoute();
-const apiServidor = `${window.location.protocol}//${window.location.hostname}/new%20app/api`;
+const apiServidor = "https://eqtc5661rodrigo.tail4cd307.ts.net";
 
 const nuevoMensaje = ref("");
 const mensajes = ref<Mensaje[]>([]);
@@ -378,7 +378,7 @@ const verificarContacto = async (contactoId: number) => {
     datos.append("token", token);
 
     const respuesta = await fetch(
-      "http://localhost/new%20app/api/controladores/contactos_controlador.php?task=obtenerContactos",
+      "https://eqtc5661rodrigo.tail4cd307.ts.net/controladores/contactos_controlador.php?task=obtenerContactos",
       {
         method: "POST",
         headers: {
@@ -424,7 +424,7 @@ const cargarContacto = async () => {
     datos.append("conversacion_id", String(conversacionId));
 
     const respuesta = await fetch(
-      "http://localhost/new%20app/api/controladores/conversaciones_controlador.php?task=obtenerContacto",
+      "https://eqtc5661rodrigo.tail4cd307.ts.net/controladores/conversaciones_controlador.php?task=obtenerContacto",
       {
         method: "POST",
         headers: {
@@ -483,7 +483,7 @@ const agregarContacto = async () => {
     datos.append("contacto_id", contacto.value.id.toString());
 
     const respuesta = await fetch(
-      "http://localhost/new%20app/api/controladores/contactos_controlador.php?task=agregarContacto",
+      "https://eqtc5661rodrigo.tail4cd307.ts.net/controladores/contactos_controlador.php?task=agregarContacto",
       {
         method: "POST",
         headers: {
@@ -579,7 +579,7 @@ const crearConexionWebRTC = async () => {
 
       try {
         await fetch(
-          "http://localhost/new%20app/api/controladores/llamadas_controlador.php?task=guardarIceCandidate",
+          "https://eqtc5661rodrigo.tail4cd307.ts.net/controladores/llamadas_controlador.php?task=guardarIceCandidate",
           {
             method: "POST",
             headers: {
@@ -615,7 +615,7 @@ const guardarOferta = async (offer: RTCSessionDescriptionInit) => {
   datos.append("offer_sdp", JSON.stringify(offer));
 
   const respuesta = await fetch(
-    "http://localhost/new%20app/api/controladores/llamadas_controlador.php?task=guardarOferta",
+    "https://eqtc5661rodrigo.tail4cd307.ts.net/controladores/llamadas_controlador.php?task=guardarOferta",
     {
       method: "POST",
       headers: {
@@ -648,7 +648,7 @@ const obtenerOferta = async () => {
   datos.append("llamada_id", String(llamadaId.value));
 
   const respuesta = await fetch(
-    "http://localhost/new%20app/api/controladores/llamadas_controlador.php?task=obtenerOferta",
+    "https://eqtc5661rodrigo.tail4cd307.ts.net/controladores/llamadas_controlador.php?task=obtenerOferta",
     {
       method: "POST",
       headers: {
@@ -681,7 +681,7 @@ const guardarRespuesta = async (answer: RTCSessionDescriptionInit) => {
   datos.append("answer_sdp", JSON.stringify(answer));
 
   const respuesta = await fetch(
-    "http://localhost/new%20app/api/controladores/llamadas_controlador.php?task=guardarRespuesta",
+    "https://eqtc5661rodrigo.tail4cd307.ts.net/controladores/llamadas_controlador.php?task=guardarRespuesta",
     {
       method: "POST",
       headers: {
@@ -714,7 +714,7 @@ const obtenerRespuesta = async () => {
   datos.append("llamada_id", String(llamadaId.value));
 
   const respuesta = await fetch(
-    "http://localhost/new%20app/api/controladores/llamadas_controlador.php?task=obtenerRespuesta",
+    "https://eqtc5661rodrigo.tail4cd307.ts.net/controladores/llamadas_controlador.php?task=obtenerRespuesta",
     {
       method: "POST",
       headers: {
@@ -760,7 +760,7 @@ const obtenerIceCandidatesWebRTC = async () => {
     datos.append("ultimo_id", String(ultimoIceCandidateId));
 
     const respuesta = await fetch(
-      "http://localhost/new%20app/api/controladores/llamadas_controlador.php?task=obtenerIceCandidates",
+      "https://eqtc5661rodrigo.tail4cd307.ts.net/controladores/llamadas_controlador.php?task=obtenerIceCandidates",
       {
         method: "POST",
         headers: {
@@ -865,7 +865,7 @@ const obtenerEstadoLlamada = async () => {
     datos.append("llamada_id", String(llamadaId.value));
 
     const respuesta = await fetch(
-      "http://localhost/new%20app/api/controladores/llamadas_controlador.php?task=obtenerEstadoLlamada",
+      "https://eqtc5661rodrigo.tail4cd307.ts.net/controladores/llamadas_controlador.php?task=obtenerEstadoLlamada",
       {
         method: "POST",
         headers: {
@@ -973,7 +973,7 @@ const iniciarLlamada = async () => {
     datos.append("receptor_id", String(contacto.value.id));
 
     const respuesta = await fetch(
-      "http://localhost/new%20app/api/controladores/llamadas_controlador.php?task=iniciarLlamada",
+      "https://eqtc5661rodrigo.tail4cd307.ts.net/controladores/llamadas_controlador.php?task=iniciarLlamada",
       {
         method: "POST",
         headers: {
@@ -1079,7 +1079,7 @@ const aceptarLlamada = async () => {
     datos.append("llamada_id", String(llamadaEntrante.value.id));
 
     const respuesta = await fetch(
-      "http://localhost/new%20app/api/controladores/llamadas_controlador.php?task=aceptarLlamada",
+      "https://eqtc5661rodrigo.tail4cd307.ts.net/controladores/llamadas_controlador.php?task=aceptarLlamada",
       {
         method: "POST",
         headers: {
@@ -1182,7 +1182,7 @@ const rechazarLlamada = async () => {
     datos.append("llamada_id", String(llamadaEntrante.value.id));
 
     const respuesta = await fetch(
-      "http://localhost/new%20app/api/controladores/llamadas_controlador.php?task=rechazarLlamada",
+      "https://eqtc5661rodrigo.tail4cd307.ts.net/controladores/llamadas_controlador.php?task=rechazarLlamada",
       {
         method: "POST",
         headers: {
@@ -1230,7 +1230,7 @@ const finalizarLlamadaActual = async () => {
     datos.append("llamada_id", String(idLlamada));
 
     const respuesta = await fetch(
-      "http://localhost/new%20app/api/controladores/llamadas_controlador.php?task=finalizarLlamada",
+      "https://eqtc5661rodrigo.tail4cd307.ts.net/controladores/llamadas_controlador.php?task=finalizarLlamada",
       {
         method: "POST",
         headers: {
@@ -1301,7 +1301,7 @@ const revisarLlamadaEntrante = async () => {
     datos.append("token", token);
 
     const respuesta = await fetch(
-      "http://localhost/new%20app/api/controladores/llamadas_controlador.php?task=obtenerLlamadaEntrante",
+      "https://eqtc5661rodrigo.tail4cd307.ts.net/controladores/llamadas_controlador.php?task=obtenerLlamadaEntrante",
       {
         method: "POST",
         headers: {
@@ -1763,7 +1763,7 @@ const cargarMensajes = async (forzarScroll = false) => {
     datos.append("pendientes", pendientes);
 
     const respuesta = await fetch(
-      "http://localhost/new%20app/api/controladores/mensajes_controlador.php?task=obtenerMensajes",
+      "https://eqtc5661rodrigo.tail4cd307.ts.net/controladores/mensajes_controlador.php?task=obtenerMensajes",
       {
         method: "POST",
         headers: {
@@ -1883,7 +1883,7 @@ const enviarMensaje = async () => {
     datos.append("mensaje", texto);
 
     const respuesta = await fetch(
-      "http://localhost/new%20app/api/controladores/mensajes_controlador.php?task=enviarMensaje",
+      "https://eqtc5661rodrigo.tail4cd307.ts.net/controladores/mensajes_controlador.php?task=enviarMensaje",
       {
         method: "POST",
         headers: {

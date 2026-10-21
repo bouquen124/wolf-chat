@@ -250,7 +250,7 @@ const obtenerGrupos = async () => {
     formData.append("token", token);
 
     const respuesta = await fetch(
-      "http://localhost/new%20app/api/controladores/conversaciones_controlador.php?task=obtenerGrupos",
+      "https://eqtc5661rodrigo.tail4cd307.ts.net/controladores/conversaciones_controlador.php?task=obtenerGrupos",
       {
         method: "POST",
         body: formData,
@@ -277,7 +277,7 @@ const obtenerContactos = async () => {
     formData.append("token", token);
 
     const respuesta = await fetch(
-      "http://localhost/new%20app/api/controladores/contactos_controlador.php?task=obtenerContactos",
+      "https://eqtc5661rodrigo.tail4cd307.ts.net/controladores/contactos_controlador.php?task=obtenerContactos",
       {
         method: "POST",
         body: formData,
@@ -385,7 +385,7 @@ const crearGrupo = async () => {
     if (fotoGrupo.value) formData.append("foto", fotoGrupo.value);
 
     const respuesta = await fetch(
-      "http://localhost/new%20app/api/controladores/conversaciones_controlador.php?task=crearGrupo",
+      "https://eqtc5661rodrigo.tail4cd307.ts.net/controladores/conversaciones_controlador.php?task=crearGrupo",
       {
         method: "POST",
         body: formData,

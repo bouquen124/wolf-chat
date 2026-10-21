@@ -296,7 +296,7 @@ const obtenerGrupo = async () => {
     formData.append("token", token);
 
     const respuesta = await fetch(
-      "http://localhost/new%20app/api/controladores/conversaciones_controlador.php?task=obtenerGrupos",
+      "https://eqtc5661rodrigo.tail4cd307.ts.net/controladores/conversaciones_controlador.php?task=obtenerGrupos",
       {
         method: "POST",
         body: formData,
@@ -336,7 +336,7 @@ const abrirIntegrantes = async () => {
     formData.append("conversacion_id", String(conversacionId));
 
     const respuesta = await fetch(
-      "http://localhost/new%20app/api/controladores/conversaciones_controlador.php?task=obtenerIntegrantesGrupo",
+      "https://eqtc5661rodrigo.tail4cd307.ts.net/controladores/conversaciones_controlador.php?task=obtenerIntegrantesGrupo",
       { method: "POST", body: formData, cache: "no-store" },
     );
     const datos = await respuesta.json();
@@ -374,7 +374,7 @@ const actualizarFotoGrupo = async (evento: Event) => {
     formData.append("token", token);
     formData.append("conversacion_id", String(conversacionId));
     formData.append("foto", archivo);
-    const respuesta = await fetch("http://localhost/new%20app/api/controladores/conversaciones_controlador.php?task=actualizarFotoGrupo", { method: "POST", body: formData, cache: "no-store" });
+    const respuesta = await fetch("https://eqtc5661rodrigo.tail4cd307.ts.net/controladores/conversaciones_controlador.php?task=actualizarFotoGrupo", { method: "POST", body: formData, cache: "no-store" });
     const datos = await respuesta.json();
     if (!datos.ok) throw new Error(datos.error || "No se pudo actualizar la foto del grupo.");
     grupo.value.foto = datos.foto;
@@ -417,7 +417,7 @@ const salirDelGrupo = async () => {
     formData.append("conversacion_id", String(conversacionId));
 
     const respuesta = await fetch(
-      "http://localhost/new%20app/api/controladores/conversaciones_controlador.php?task=salirGrupo",
+      "https://eqtc5661rodrigo.tail4cd307.ts.net/controladores/conversaciones_controlador.php?task=salirGrupo",
       { method: "POST", body: formData, cache: "no-store" },
     );
     const datos = await respuesta.json();
@@ -453,7 +453,7 @@ const obtenerMensajes = async (forzarScroll = false) => {
     formData.append("conversacion_id", String(conversacionId));
 
     const respuesta = await fetch(
-      "http://localhost/new%20app/api/controladores/mensajes_controlador.php?task=obtenerMensajes",
+      "https://eqtc5661rodrigo.tail4cd307.ts.net/controladores/mensajes_controlador.php?task=obtenerMensajes",
       {
         method: "POST",
         body: formData,
@@ -519,7 +519,7 @@ const enviarMensaje = async () => {
     formData.append("mensaje", texto);
 
     const respuesta = await fetch(
-      "http://localhost/new%20app/api/controladores/mensajes_controlador.php?task=enviarMensaje",
+      "https://eqtc5661rodrigo.tail4cd307.ts.net/controladores/mensajes_controlador.php?task=enviarMensaje",
       {
         method: "POST",
         body: formData,

@@ -5,6 +5,7 @@ class usuarios
 
     function __construct()
     {
+        global $pdo;
         require_once __DIR__ . '/../config/database.php';
         $this->conn = $pdo;
     }
@@ -211,10 +212,12 @@ class usuarios
         $descripcion = $p['descripcion'] ?? '';
         $estados = $p['estados'] ?? '';
         $ultimaConexion = $p['ultima_conexion'] ?? '';
-        if (!in_array($foto, $valoresPermitidos, true) ||
+        if (
+            !in_array($foto, $valoresPermitidos, true) ||
             !in_array($descripcion, $valoresPermitidos, true) ||
             !in_array($estados, $valoresEstadosPermitidos, true) ||
-            !in_array($ultimaConexion, $valoresPermitidos, true)) {
+            !in_array($ultimaConexion, $valoresPermitidos, true)
+        ) {
             http_response_code(400);
             print json_encode(['ok' => false, 'error' => 'Selecciona una opción válida para cada permiso'], JSON_UNESCAPED_UNICODE);
             return;

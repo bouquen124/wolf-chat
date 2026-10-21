@@ -165,7 +165,7 @@ const cargarChats = async () => {
     datos.append("token", token);
 
     const respuesta = await fetch(
-      "http://localhost/new%20app/api/controladores/conversaciones_controlador.php?task=obtenerChats",
+      "https://eqtc5661rodrigo.tail4cd307.ts.net/controladores/conversaciones_controlador.php?task=obtenerChats",
       {
         method: "POST",
         headers: {
@@ -212,7 +212,7 @@ const crearConversacion = async (contactoId: number) => {
     datos.append("destinatario_id", contactoId.toString());
 
     const respuesta = await fetch(
-      "http://localhost/new%20app/api/controladores/conversaciones_controlador.php?task=crearConversacion",
+      "https://eqtc5661rodrigo.tail4cd307.ts.net/controladores/conversaciones_controlador.php?task=crearConversacion",
       {
         method: "POST",
         headers: {

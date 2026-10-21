@@ -13,7 +13,7 @@ export const APP_THEMES = [
 
 const STORAGE_KEY = "preferenciasApp";
 const TEMA_PREDETERMINADO = APP_THEMES[0];
-const API = "http://localhost/new%20app/api/controladores/usuarios_controlador.php";
+const API = "https://eqtc5661rodrigo.tail4cd307.ts.net/controladores/usuarios_controlador.php";
 
 export const leerPreferenciasApp = (): AppPreferences => {
   try {

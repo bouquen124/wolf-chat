@@ -1,15 +1,5 @@
 <?php
-
-header("Access-Control-Allow-Origin: http://localhost:8100");
-header("Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS");
-header("Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With");
-header("Access-Control-Allow-Credentials: true");
-
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
-    http_response_code(200);
-    exit;
-}
-
+require_once __DIR__ . '/../cors.php';
 include_once("../config/database.php");
 require_once __DIR__ . '/../config/tareas_programadas.php';
 ejecutarTareasProgramadasEnPeticion($pdo);
@@ -66,8 +56,9 @@ switch ($task) {
 
         print json_encode([
             'ok' => false,
-            'error' => 'Task no válido'
+            'error' => 'Task no vÃ¡lido'
         ], JSON_UNESCAPED_UNICODE);
 
         break;
 }
+

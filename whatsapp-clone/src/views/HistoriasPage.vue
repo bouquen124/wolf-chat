@@ -293,7 +293,7 @@ const cargarMisHistorias = async () => {
     formData.append("token", token);
 
     const respuesta = await fetch(
-      "http://localhost/new%20app/api/controladores/estados_controlador.php?task=obtenerMisEstados",
+      "https://eqtc5661rodrigo.tail4cd307.ts.net/controladores/estados_controlador.php?task=obtenerMisEstados",
       {
         method: "POST",
         headers: {
@@ -347,7 +347,7 @@ const cargarHistoriasOtros = async () => {
     formData.append("token", token);
 
     const respuesta = await fetch(
-      "http://localhost/new%20app/api/controladores/estados_controlador.php?task=obtenerEstados",
+      "https://eqtc5661rodrigo.tail4cd307.ts.net/controladores/estados_controlador.php?task=obtenerEstados",
       {
         method: "POST",
         headers: {
@@ -442,7 +442,7 @@ const agregarHistoria = () => {
 const cargarProgramados = async () => {
   try {
     const body = new URLSearchParams({ token });
-    const respuesta = await fetch("http://localhost/new%20app/api/controladores/estados_controlador.php?task=obtenerProgramados", {
+    const respuesta = await fetch("https://eqtc5661rodrigo.tail4cd307.ts.net/controladores/estados_controlador.php?task=obtenerProgramados", {
       method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: body.toString(), cache: "no-store",
     });
     const data = await respuesta.json();
@@ -457,7 +457,7 @@ const formatearFecha = (valor: string) => new Date(valor.replace(" ", "T")).toLo
 const cancelarProgramado = async (id: number) => {
   try {
     const body = new URLSearchParams({ token, programado_id: String(id) });
-    const respuesta = await fetch("http://localhost/new%20app/api/controladores/estados_controlador.php?task=cancelarProgramado", {
+    const respuesta = await fetch("https://eqtc5661rodrigo.tail4cd307.ts.net/controladores/estados_controlador.php?task=cancelarProgramado", {
       method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: body.toString(),
     });
     const data = await respuesta.json();
@@ -556,7 +556,7 @@ const publicarHistoria = async () => {
     }
 
     const respuesta = await fetch(
-      "http://localhost/new%20app/api/controladores/estados_controlador.php?task=crearEstado",
+      "https://eqtc5661rodrigo.tail4cd307.ts.net/controladores/estados_controlador.php?task=crearEstado",
       { method: "POST", body: formData },
     );
 

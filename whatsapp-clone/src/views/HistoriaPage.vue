@@ -207,7 +207,7 @@ const cargarHistorias = async () => {
     formData.append("token", token);
 
     const respuesta = await fetch(
-      "http://localhost/new%20app/api/controladores/estados_controlador.php?task=obtenerEstados",
+      "https://eqtc5661rodrigo.tail4cd307.ts.net/controladores/estados_controlador.php?task=obtenerEstados",
       {
         method: "POST",
         headers: {
@@ -253,7 +253,7 @@ const cargarHistorias = async () => {
     const propiosForm = new URLSearchParams();
     propiosForm.append("token", token);
     const respuestaPropios = await fetch(
-      "http://localhost/new%20app/api/controladores/estados_controlador.php?task=obtenerMisEstados",
+      "https://eqtc5661rodrigo.tail4cd307.ts.net/controladores/estados_controlador.php?task=obtenerMisEstados",
       {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -307,7 +307,7 @@ const abrirVistas = async () => {
     formData.append("estado_id", String(historia.value.id));
 
     const respuesta = await fetch(
-      "http://localhost/new%20app/api/controladores/estados_controlador.php?task=obtenerVistas",
+      "https://eqtc5661rodrigo.tail4cd307.ts.net/controladores/estados_controlador.php?task=obtenerVistas",
       {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -357,7 +357,7 @@ const eliminarHistoriaActual = async () => {
     formData.append("estado_id", String(idEliminado));
 
     const respuesta = await fetch(
-      "http://localhost/new%20app/api/controladores/estados_controlador.php?task=eliminarEstado",
+      "https://eqtc5661rodrigo.tail4cd307.ts.net/controladores/estados_controlador.php?task=eliminarEstado",
       {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -413,7 +413,7 @@ const marcarVisto = async () => {
     formData.append("estado_id", String(historia.value.id));
 
     await fetch(
-      "http://localhost/new%20app/api/controladores/estados_controlador.php?task=marcarVisto",
+      "https://eqtc5661rodrigo.tail4cd307.ts.net/controladores/estados_controlador.php?task=marcarVisto",
       {
         method: "POST",
         headers: {

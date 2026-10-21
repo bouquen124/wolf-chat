@@ -224,7 +224,7 @@ const iniciarRecuperacion = async () => {
     datos.append("password", passwordNueva);
 
     const respuesta = await fetch(
-      "http://localhost/new%20app/api/controladores/usuarios_controlador.php?task=restablecerPasswordDesarrollo",
+      "https://eqtc5661rodrigo.tail4cd307.ts.net/controladores/usuarios_controlador.php?task=restablecerPasswordDesarrollo",
       {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -269,7 +269,7 @@ const iniciarSesion = async () => {
     datos.append("password", password.value);
 
     const respuesta = await fetch(
-      "http://localhost/new%20app/api/controladores/usuarios_controlador.php?task=login",
+      "https://eqtc5661rodrigo.tail4cd307.ts.net/controladores/usuarios_controlador.php?task=login",
       {
         method: "POST",
         headers: {

@@ -139,7 +139,7 @@ const registrarUsuario = async () => {
     datos.append('password', password.value);
 
     const respuesta = await fetch(
-      'http://localhost/new%20app/api/controladores/usuarios_controlador.php?task=insertUsuario',
+      'https://eqtc5661rodrigo.tail4cd307.ts.net/controladores/usuarios_controlador.php?task=insertUsuario',
       {
         method: 'POST',
         headers: {

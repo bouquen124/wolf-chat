@@ -191,7 +191,7 @@ const revisarNotificacionPendiente = async () => {
   try {
     const datos = new URLSearchParams({ token: localStorage.getItem("token") || "" });
     const respuesta = await fetch(
-      "http://localhost/new%20app/api/controladores/notificaciones_controlador.php?task=obtenerPendiente",
+      "https://eqtc5661rodrigo.tail4cd307.ts.net/controladores/notificaciones_controlador.php?task=obtenerPendiente",
       { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: datos.toString(), cache: "no-store" },
     );
     const resultado = await respuesta.json();
@@ -209,7 +209,7 @@ const registrarActividad = async () => {
   try {
     const datos = new URLSearchParams({ token });
     await fetch(
-      "http://localhost/new%20app/api/controladores/conversaciones_controlador.php?task=registrarActividad",
+      "https://eqtc5661rodrigo.tail4cd307.ts.net/controladores/conversaciones_controlador.php?task=registrarActividad",
       { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: datos.toString(), cache: "no-store" },
     );
   } catch (error) {
@@ -235,7 +235,7 @@ const revisarLlamadaEntrante = async () => {
     datos.append("token", token);
 
     const respuesta = await fetch(
-      "http://localhost/new%20app/api/controladores/llamadas_controlador.php?task=obtenerLlamadaEntrante",
+      "https://eqtc5661rodrigo.tail4cd307.ts.net/controladores/llamadas_controlador.php?task=obtenerLlamadaEntrante",
       {
         method: "POST",
         headers: {
@@ -279,7 +279,7 @@ const aceptarLlamada = async () => {
     datos.append("llamada_id", String(llamadaEntrante.value.id));
 
     const respuesta = await fetch(
-      "http://localhost/new%20app/api/controladores/llamadas_controlador.php?task=aceptarLlamada",
+      "https://eqtc5661rodrigo.tail4cd307.ts.net/controladores/llamadas_controlador.php?task=aceptarLlamada",
       {
         method: "POST",
         headers: {
@@ -324,7 +324,7 @@ const rechazarLlamada = async () => {
     datos.append("llamada_id", String(llamadaEntrante.value.id));
 
     const respuesta = await fetch(
-      "http://localhost/new%20app/api/controladores/llamadas_controlador.php?task=rechazarLlamada",
+      "https://eqtc5661rodrigo.tail4cd307.ts.net/controladores/llamadas_controlador.php?task=rechazarLlamada",
       {
         method: "POST",
         headers: {
