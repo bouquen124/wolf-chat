@@ -16,23 +16,13 @@
       <div class="chats-wrapper">
         <!-- Buscador con estilo Glass -->
         <div class="search-container">
-          <ion-searchbar
-            v-model="busqueda"
-            placeholder="Buscar chat o contacto..."
-            class="custom-searchbar"
-          />
+          <ion-searchbar v-model="busqueda" placeholder="Buscar chat o contacto..." class="custom-searchbar" />
         </div>
 
         <!-- Lista de conversaciones -->
         <ion-list class="chats-list" v-if="chatsFiltrados.length > 0">
-          <ion-item
-            v-for="chat in chatsFiltrados"
-            :key="chat.contacto_id"
-            button
-            :detail="false"
-            class="chat-card-item"
-            @click="abrirChat(chat)"
-          >
+          <ion-item v-for="chat in chatsFiltrados" :key="chat.contacto_id" button :detail="false" class="chat-card-item"
+            @click="abrirChat(chat)">
             <!-- Avatar con anillo neón -->
             <div class="avatar-container" slot="start">
               <div class="avatar-ring">
@@ -64,10 +54,7 @@
         </ion-list>
 
         <!-- Estado vacío (sin chats) -->
-        <div
-          v-if="!cargando && chatsFiltrados.length === 0"
-          class="sin-chats-card"
-        >
+        <div v-if="!cargando && chatsFiltrados.length === 0" class="sin-chats-card">
           <div class="empty-icon-orb">
             <ion-icon :icon="addOutline" />
           </div>
@@ -84,12 +71,7 @@
       </div>
 
       <!-- Botón Flotante Neón (FAB) -->
-      <ion-fab
-        slot="fixed"
-        vertical="bottom"
-        horizontal="end"
-        class="custom-fab"
-      >
+      <ion-fab slot="fixed" vertical="bottom" horizontal="end" class="custom-fab">
         <ion-fab-button class="btn-fab-glow" @click="agregarContacto">
           <ion-icon :icon="addOutline" />
         </ion-fab-button>
@@ -123,6 +105,29 @@ import {
 } from "@ionic/vue";
 
 import { addOutline } from "ionicons/icons";
+
+const normalizarFoto = (valor: unknown): string => {
+  if (typeof valor !== "string" || !valor.trim()) return "";
+  let ruta = valor.trim();
+  try {
+    if (/^https?:\/\//i.test(ruta)) ruta = new URL(ruta).pathname;
+    ruta = decodeURIComponent(ruta);
+  } catch {
+    return "";
+  }
+  const i = ruta.toLowerCase().lastIndexOf("/uploads/");
+  ruta = i >= 0
+    ? ruta.substring(i + "/uploads/".length)
+    : ruta.replace(/^\/+/, "").replace(/^uploads\//i, "");
+  if (!ruta || ruta.includes("..")) return "";
+  if (!/^(estados|perfiles|grupos|mensajes)\//i.test(ruta)) {
+    ruta = `perfiles/${ruta.split("/").pop()}`;
+  }
+  return `https://eqtc5661rodrigo.tail4cd307.ts.net/uploads/${ruta
+    .split("/")
+    .map(encodeURIComponent)
+    .join("/")}`;
+};
 
 interface Chat {
   conversacion_id: number | null;
@@ -187,7 +192,7 @@ const cargarChats = async () => {
     chats.value = resultado.chats.map((chat: Chat) => ({
       ...chat,
       nombre: `${chat.nombre} ${chat.apellido}`.trim(),
-      avatar: chat.foto || "",
+      avatar: normalizarFoto(chat.foto),
       hora: chat.fecha_envio ? formatearHora(chat.fecha_envio) : "",
     }));
   } catch (error) {

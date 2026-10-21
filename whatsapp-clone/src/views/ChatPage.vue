@@ -188,6 +188,28 @@ import {
 import { sendOutline, callOutline, attachOutline, micOutline, stopOutline, closeCircleOutline, trashOutline, playOutline, pauseOutline } from "ionicons/icons";
 import PerfilContactoModal from "../components/PerfilContactoModal.vue";
 
+const normalizarFoto = (valor: unknown): string => {
+  if (typeof valor !== "string" || !valor.trim()) return "";
+  let ruta = valor.trim();
+  try {
+    if (/^https?:\/\//i.test(ruta)) ruta = new URL(ruta).pathname;
+    ruta = decodeURIComponent(ruta);
+  } catch {
+    return "";
+  }
+  const i = ruta.toLowerCase().lastIndexOf("/uploads/");
+  ruta = i >= 0
+    ? ruta.substring(i + "/uploads/".length)
+    : ruta.replace(/^\/+/, "").replace(/^uploads\//i, "");
+  if (!ruta || ruta.includes("..")) return "";
+  if (!/^(estados|perfiles|grupos|mensajes)\//i.test(ruta)) {
+    ruta = `perfiles/${ruta.split("/").pop()}`;
+  }
+  return `https://eqtc5661rodrigo.tail4cd307.ts.net/uploads/${ruta
+    .split("/")
+    .map(encodeURIComponent)
+    .join("/")}`;
+};
 interface Mensaje {
   id: number;
   conversacion_id: number;
@@ -446,7 +468,7 @@ const cargarContacto = async () => {
     contacto.value = {
       id: usuario.id,
       nombre: `${usuario.nombre || ""} ${usuario.apellido || ""}`.trim(),
-      avatar: usuario.foto || "",
+      avatar: normalizarFoto(usuario.foto),
       descripcion: usuario.descripcion || "",
       telefono: usuario.telefono || "",
       ultimaConexion: usuario.ultima_conexion || null,

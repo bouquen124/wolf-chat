@@ -205,16 +205,18 @@ class estados
         $stmt->execute([$estadoId, $visualizadorId]);
         return (bool)$stmt->fetchColumn();
     }
-
     private function urlRuta($ruta)
     {
-        if (empty($ruta)) {
-            return '';
+        if (empty($ruta)) return '';
+
+        $base = 'https://eqtc5661rodrigo.tail4cd307.ts.net';
+
+        if (preg_match('#^https?://#i', $ruta)) {
+            return preg_replace('#^https?://(localhost|127\.0\.0\.1|192\.168\.[\d.]+)(:\d+)?#i', $base, $ruta);
         }
-        if (strpos($ruta, 'http://') === 0 || strpos($ruta, 'https://') === 0) {
-            return $ruta;
-        }
-        return 'http://localhost' . $ruta;
+
+        $ruta = preg_replace('#^/new(%20| )app/api#i', '', $ruta);
+        return $base . '/' . ltrim($ruta, '/');
     }
 
     private function subirArchivo($archivo, $tiposPermitidos, $carpetaRelativa, $maxSize = 20971520)
