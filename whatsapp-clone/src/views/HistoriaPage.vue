@@ -1,3 +1,6 @@
+`C:\xampp\htdocs\new app\whatsapp-clone\src\views\HistoriasPage.vue`
+
+vue
 <template>
   <ion-page class="historia-page">
     <ion-header class="glass-header">
@@ -20,12 +23,10 @@
         </ion-buttons>
 
         <ion-avatar class="avatar-header">
-          <img v-if="historia.avatar" :src="historia.avatar" />
+          <img v-if="historia.avatar" :src="historia.avatar" :alt="historia.nombre" />
         </ion-avatar>
 
-        <ion-title>
-          {{ historia.nombre }}
-        </ion-title>
+        <ion-title>{{ historia.nombre }}</ion-title>
       </ion-toolbar>
     </ion-header>
 
@@ -38,9 +39,7 @@
           <div v-for="item in historias" :key="item.id" class="progreso">
             <div
               class="progreso-activo"
-              :class="{
-                completado: indiceActual > historias.indexOf(item),
-              }"
+              :class="{ completado: indiceActual > historias.indexOf(item) }"
               :style="item.id === historia.id ? { width: progreso + '%' } : {}"
             ></div>
           </div>
@@ -48,9 +47,7 @@
 
         <div class="zona-historia" @click="alternarPausa">
           <div v-if="historia.tipo === 'texto'" class="texto-wrapper">
-            <div class="historia-texto">
-              {{ historia.contenido }}
-            </div>
+            <div class="historia-texto">{{ historia.contenido }}</div>
           </div>
 
           <div v-else-if="historia.tipo === 'imagen'" class="imagen-wrapper">
@@ -107,8 +104,10 @@
           <ion-title>Visto por</ion-title>
         </ion-toolbar>
       </ion-header>
+
       <ion-content class="modal-vistas">
         <div v-if="cargandoVistas" class="estado-vistas-vacio">Cargando...</div>
+
         <ion-list v-else-if="vistas.length" class="lista-vistas">
           <ion-item v-for="vista in vistas" :key="vista.id" lines="none">
             <ion-avatar slot="start">
@@ -120,7 +119,10 @@
             </ion-label>
           </ion-item>
         </ion-list>
-        <div v-else class="estado-vistas-vacio">Todavía nadie ha visto esta historia.</div>
+
+        <div v-else class="estado-vistas-vacio">
+          Todavía nadie ha visto esta historia.
+        </div>
       </ion-content>
     </ion-modal>
   </ion-page>
@@ -128,9 +130,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
-
 import { useRoute, useRouter } from "vue-router";
-
 import {
   IonPage,
   IonHeader,
@@ -147,7 +147,6 @@ import {
   IonLabel,
   alertController,
 } from "@ionic/vue";
-
 import {
   closeOutline,
   chevronBackOutline,
@@ -157,16 +156,62 @@ import {
 } from "ionicons/icons";
 
 const route = useRoute();
-
 const router = useRouter();
+
+const API_ORIGEN = "https://eqtc5661rodrigo.tail4cd307.ts.net";
+const token = localStorage.getItem("token") || "";
 
 const historias = ref<any[]>([]);
 const vistas = ref<any[]>([]);
 const mostrarVistas = ref(false);
 const cargandoVistas = ref(false);
 const eliminando = ref(false);
+const progreso = ref(0);
+const pausada = ref(false);
 
-const token = localStorage.getItem("token") || "";
+let intervalo: ReturnType<typeof setInterval> | null = null;
+
+const normalizarUrlArchivo = (
+  valor: unknown,
+  carpeta: "estados" | "perfiles",
+): string => {
+  if (typeof valor !== "string" || !valor.trim()) return "";
+
+  let ruta = valor.trim();
+
+  try {
+    if (/^https?:\/\//i.test(ruta)) {
+      ruta = new URL(ruta).pathname;
+    }
+  } catch {
+    return "";
+  }
+
+  try {
+    ruta = decodeURIComponent(ruta);
+  } catch {
+    // Conserva la ruta original si no puede decodificarse.
+  }
+
+  const indiceUploads = ruta.toLowerCase().lastIndexOf("/uploads/");
+
+  if (indiceUploads >= 0) {
+    ruta = ruta.substring(indiceUploads + "/uploads/".length);
+  } else {
+    ruta = ruta.replace(/^\/+/, "").replace(/^uploads\//i, "");
+  }
+
+  if (!ruta || ruta.includes("..")) return "";
+
+  if (!/^(estados|perfiles|mensajes)\//i.test(ruta)) {
+    ruta = `${carpeta}/${ruta.split("/").pop()}`;
+  }
+
+  return `${API_ORIGEN}/uploads/${ruta
+    .split("/")
+    .map((parte) => encodeURIComponent(parte))
+    .join("/")}`;
+};
 
 const historia = computed(() => {
   const id = Number(route.params.id);
@@ -184,35 +229,25 @@ const historia = computed(() => {
   );
 });
 
-const indiceActual = computed(() => {
-  return historias.value.findIndex((item) => item.id === historia.value.id);
-});
+const indiceActual = computed(() =>
+  historias.value.findIndex((item) => item.id === historia.value.id),
+);
 
 const tieneHistoriaValida = computed(() => {
   const id = Number(route.params.id);
-
   return Number.isInteger(id) && historias.value.some((item) => item.id === id);
 });
-
-const progreso = ref(0);
-
-const pausada = ref(false);
-
-let intervalo: ReturnType<typeof setInterval> | null = null;
 
 const cargarHistorias = async () => {
   try {
     const formData = new URLSearchParams();
-
     formData.append("token", token);
 
     const respuesta = await fetch(
-      "https://eqtc5661rodrigo.tail4cd307.ts.net/controladores/estados_controlador.php?task=obtenerEstados",
+      `${API_ORIGEN}/controladores/estados_controlador.php?task=obtenerEstados`,
       {
         method: "POST",
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
-        },
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body: formData.toString(),
       },
     );
@@ -221,55 +256,46 @@ const cargarHistorias = async () => {
 
     if (!data.ok) {
       historias.value = [];
-
       return;
     }
 
     const historiasContactos = (data.estados || []).map((estado: any) => ({
       id: Number(estado.id),
-
       usuario_id: Number(estado.usuario_id),
-
       nombre: `${estado.nombre || ""} ${estado.apellido || ""}`.trim(),
-
-      avatar: estado.foto || "",
-
+      avatar: normalizarUrlArchivo(estado.foto, "perfiles"),
       tipo: estado.tipo,
-
       contenido: estado.contenido || "",
-
-      archivo: estado.ruta || estado.archivo || "",
-
+      archivo: normalizarUrlArchivo(estado.ruta || estado.archivo, "estados"),
       archivo_id: estado.archivo_id,
-
       visto: Number(estado.visto) || 0,
-
       fecha_creacion: estado.fecha_creacion,
-
       fecha_expiracion: estado.fecha_expiracion,
     }));
 
-    // La consulta general excluye al usuario autenticado; cargamos sus estados aparte.
     const propiosForm = new URLSearchParams();
     propiosForm.append("token", token);
+
     const respuestaPropios = await fetch(
-      "https://eqtc5661rodrigo.tail4cd307.ts.net/controladores/estados_controlador.php?task=obtenerMisEstados",
+      `${API_ORIGEN}/controladores/estados_controlador.php?task=obtenerMisEstados`,
       {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body: propiosForm.toString(),
       },
     );
+
     const dataPropios = await respuestaPropios.json();
+
     const historiasPropias = dataPropios.ok
       ? (dataPropios.estados || []).map((estado: any) => ({
           id: Number(estado.id),
           usuario_id: Number(estado.usuario_id),
           nombre: `${estado.nombre || ""} ${estado.apellido || ""}`.trim(),
-          avatar: estado.foto || "",
+          avatar: normalizarUrlArchivo(estado.foto, "perfiles"),
           tipo: estado.tipo,
           contenido: estado.contenido || "",
-          archivo: estado.ruta || estado.archivo || "",
+          archivo: normalizarUrlArchivo(estado.ruta || estado.archivo, "estados"),
           archivo_id: estado.archivo_id,
           visto: 0,
           esMia: true,
@@ -285,10 +311,10 @@ const cargarHistorias = async () => {
     );
     const lista = esHistoriaPropia ? historiasPropias : historiasContactos;
     const indice = lista.findIndex((item: any) => item.id === idSolicitado);
+
     historias.value = indice >= 0 ? lista : historiasContactos;
   } catch (error) {
     console.error("Error al cargar historias:", error);
-
     historias.value = [];
   }
 };
@@ -307,19 +333,33 @@ const abrirVistas = async () => {
     formData.append("estado_id", String(historia.value.id));
 
     const respuesta = await fetch(
-      "https://eqtc5661rodrigo.tail4cd307.ts.net/controladores/estados_controlador.php?task=obtenerVistas",
+      `${API_ORIGEN}/controladores/estados_controlador.php?task=obtenerVistas`,
       {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body: formData.toString(),
       },
     );
+
     const data = await respuesta.json();
     if (!data.ok) throw new Error(data.error || "No se pudieron cargar las vistas.");
-    vistas.value = Array.isArray(data.vistas) ? data.vistas : [];
+
+    vistas.value = Array.isArray(data.vistas)
+      ? data.vistas.map((vista: any) => ({
+          ...vista,
+          foto: normalizarUrlArchivo(vista.foto, "perfiles"),
+        }))
+      : [];
   } catch (error: any) {
     console.error("Error al cargar quién vio la historia:", error);
-    window.alert(error.message || "No se pudieron cargar las vistas.");
+
+    const alerta = await alertController.create({
+      mode: "ios",
+      header: "No se pudieron cargar las vistas",
+      message: error.message || "Inténtalo de nuevo.",
+      buttons: ["Aceptar"],
+    });
+    await alerta.present();
     cerrarVistas();
   } finally {
     cargandoVistas.value = false;
@@ -343,6 +383,7 @@ const eliminarHistoriaActual = async () => {
       { text: "Eliminar", role: "destructive" },
     ],
   });
+
   await confirmacion.present();
   const { role } = await confirmacion.onDidDismiss();
   if (role !== "destructive") return;
@@ -357,13 +398,14 @@ const eliminarHistoriaActual = async () => {
     formData.append("estado_id", String(idEliminado));
 
     const respuesta = await fetch(
-      "https://eqtc5661rodrigo.tail4cd307.ts.net/controladores/estados_controlador.php?task=eliminarEstado",
+      `${API_ORIGEN}/controladores/estados_controlador.php?task=eliminarEstado`,
       {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body: formData.toString(),
       },
     );
+
     const data = await respuesta.json();
     if (!data.ok) throw new Error(data.error || "No se pudo eliminar la historia.");
 
@@ -377,6 +419,7 @@ const eliminarHistoriaActual = async () => {
       message: "La historia se eliminó correctamente.",
       buttons: ["Aceptar"],
     });
+
     await alerta.present();
     await alerta.onDidDismiss();
 
@@ -388,12 +431,14 @@ const eliminarHistoriaActual = async () => {
     }
   } catch (error: any) {
     console.error("Error al eliminar historia:", error);
+
     const alerta = await alertController.create({
       mode: "ios",
       header: "No se pudo eliminar",
       message: error.message || "Inténtalo de nuevo.",
       buttons: ["Aceptar"],
     });
+
     await alerta.present();
   } finally {
     eliminando.value = false;
@@ -401,24 +446,18 @@ const eliminarHistoriaActual = async () => {
 };
 
 const marcarVisto = async () => {
-  if (!historia.value.id || !token) {
-    return;
-  }
+  if (!historia.value.id || !token) return;
 
   try {
     const formData = new URLSearchParams();
-
     formData.append("token", token);
-
     formData.append("estado_id", String(historia.value.id));
 
     await fetch(
-      "https://eqtc5661rodrigo.tail4cd307.ts.net/controladores/estados_controlador.php?task=marcarVisto",
+      `${API_ORIGEN}/controladores/estados_controlador.php?task=marcarVisto`,
       {
         method: "POST",
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
-        },
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body: formData.toString(),
       },
     );
@@ -434,26 +473,19 @@ const alternarPausa = () => {
 const iniciarProgreso = () => {
   detenerProgreso();
 
-  if (!tieneHistoriaValida.value) {
-    return;
-  }
+  if (!tieneHistoriaValida.value) return;
 
   progreso.value = 0;
-
   pausada.value = false;
-
-  marcarVisto();
+  void marcarVisto();
 
   intervalo = setInterval(() => {
-    if (pausada.value) {
-      return;
-    }
+    if (pausada.value) return;
 
     progreso.value += 1;
 
     if (progreso.value >= 100) {
       detenerProgreso();
-
       siguienteHistoria();
     }
   }, 50);
@@ -462,21 +494,18 @@ const iniciarProgreso = () => {
 const detenerProgreso = () => {
   if (intervalo) {
     clearInterval(intervalo);
-
     intervalo = null;
   }
 };
 
 const cerrarHistorias = () => {
   detenerProgreso();
-
   router.push("/historias");
 };
 
 const siguienteHistoria = () => {
   if (!tieneHistoriaValida.value) {
     router.push("/historias");
-
     return;
   }
 
@@ -484,19 +513,15 @@ const siguienteHistoria = () => {
 
   if (indice === -1 || indice >= historias.value.length - 1) {
     router.push("/historias");
-
     return;
   }
 
-  const siguiente = historias.value[indice + 1];
-
-  router.push(`/historia/${siguiente.id}`);
+  router.push(`/historia/${historias.value[indice + 1].id}`);
 };
 
 const historiaAnterior = () => {
   if (!tieneHistoriaValida.value) {
     router.push("/historias");
-
     return;
   }
 
@@ -504,21 +529,16 @@ const historiaAnterior = () => {
 
   if (indice <= 0) {
     router.push("/historias");
-
     return;
   }
 
-  const anterior = historias.value[indice - 1];
-
-  router.push(`/historia/${anterior.id}`);
+  router.push(`/historia/${historias.value[indice - 1].id}`);
 };
 
 watch(
   () => historia.value.id,
   () => {
-    if (tieneHistoriaValida.value) {
-      iniciarProgreso();
-    }
+    if (tieneHistoriaValida.value) iniciarProgreso();
   },
 );
 
@@ -527,7 +547,6 @@ onMounted(async () => {
 
   if (!tieneHistoriaValida.value) {
     router.replace("/historias");
-
     return;
   }
 
@@ -663,20 +682,12 @@ onUnmounted(() => {
   overflow: hidden;
   background: rgba(255, 255, 255, 0.025);
   border: 1px solid rgba(255, 255, 255, 0.06);
-  box-shadow:
-    0 20px 60px rgba(0, 0, 0, 0.45),
-    0 0 35px rgba(16, 185, 129, 0.05);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45), 0 0 35px rgba(16, 185, 129, 0.05);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
 }
 
-.historia-imagen {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  border-radius: 22px;
-}
-
+.historia-imagen,
 .historia-video {
   width: 100%;
   height: 100%;
@@ -692,15 +703,9 @@ onUnmounted(() => {
   justify-content: center;
   padding: 35px;
   border-radius: 24px;
-  background: linear-gradient(
-    135deg,
-    rgba(16, 185, 129, 0.18),
-    rgba(6, 182, 212, 0.18)
-  );
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.18), rgba(6, 182, 212, 0.18));
   border: 1px solid rgba(255, 255, 255, 0.06);
-  box-shadow:
-    0 20px 60px rgba(0, 0, 0, 0.45),
-    0 0 35px rgba(16, 185, 129, 0.05);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45), 0 0 35px rgba(16, 185, 129, 0.05);
 }
 
 .historia-texto {

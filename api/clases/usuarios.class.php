@@ -471,10 +471,7 @@ class usuarios
                 throw new RuntimeException('No se pudo guardar el archivo');
             }
 
-            $esHttps = !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off';
-            $protocolo = $esHttps ? 'https' : 'http';
-            $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
-            $foto = $protocolo . '://' . $host . '/new%20app/api/uploads/perfiles/' . $nombreArchivo;
+        $foto = 'https://eqtc5661rodrigo.tail4cd307.ts.net/uploads/perfiles/' . $nombreArchivo;
 
             $stmt = $this->conn->prepare("UPDATE usuarios SET foto = :foto WHERE id = :id");
             $stmt->execute([':foto' => $foto, ':id' => $usuarioId]);
