@@ -6,12 +6,8 @@
           <ion-back-button default-href="/chats" />
         </ion-buttons>
 
-        <button
-          slot="start"
-          class="chat-header-perfil"
-          aria-label="Ver perfil del contacto"
-          @click="abrirPerfilContacto"
-        >
+        <button slot="start" class="chat-header-perfil" aria-label="Ver perfil del contacto"
+          @click="abrirPerfilContacto">
           <ion-avatar class="avatar-header">
             <div class="avatar-ring">
               <img v-if="contacto.avatar" :src="contacto.avatar" />
@@ -26,72 +22,49 @@
           </span>
         </button>
 
-        <ion-button
-          v-if="contacto.id && !llamadaActiva"
-          slot="end"
-          fill="clear"
-          class="header-action"
-          @click="iniciarLlamada"
-        >
+        <ion-button v-if="contacto.id && !llamadaActiva" slot="end" fill="clear" class="header-action"
+          @click="iniciarLlamada">
           <ion-icon :icon="callOutline" />
         </ion-button>
 
-        <ion-button
-          v-if="!yaAgregado && contacto.id"
-          slot="end"
-          fill="clear"
-          class="header-add"
-          @click="agregarContacto"
-        >
+        <ion-button v-if="!yaAgregado && contacto.id" slot="end" fill="clear" class="header-add"
+          @click="agregarContacto">
           Agregar
         </ion-button>
       </ion-toolbar>
     </ion-header>
 
-    <PerfilContactoModal
-      :visible="mostrarPerfilContacto"
-      :perfil="perfilContacto"
-      @cerrar="mostrarPerfilContacto = false"
-    />
+    <PerfilContactoModal :visible="mostrarPerfilContacto" :perfil="perfilContacto"
+      @cerrar="mostrarPerfilContacto = false" />
 
     <ion-content ref="contenido" class="chat-content" :fullscreen="true">
       <div class="ambient-glow glow-emerald"></div>
       <div class="ambient-glow glow-cyan"></div>
 
       <div class="mensajes">
-        <div
-          v-for="mensaje in mensajes"
-          :key="mensaje.id"
-          class="mensaje"
-          :class="
-            esMiMensaje(mensaje.remitente_id) ? 'mensaje-yo' : 'mensaje-otro'
-          "
-        >
-          <div class="burbuja" :class="{ 'burbuja-media': mensaje.mensaje_tipo === 'imagen' || mensaje.mensaje_tipo === 'audio' }">
-            <img
-              v-if="mensaje.mensaje_tipo === 'imagen' && mensaje.archivo_local_url"
-              class="media-imagen"
-              :src="mensaje.archivo_local_url"
-              :alt="mensaje.archivo_nombre || 'Imagen enviada'"
-            />
-            <audio
-              v-else-if="mensaje.mensaje_tipo === 'audio' && mensaje.archivo_local_url"
-              class="audio-elemento-oculto"
-              :ref="(elemento) => registrarAudio(mensaje.id, elemento)"
-              :src="mensaje.archivo_local_url"
-              preload="metadata"
-              @timeupdate="actualizarProgresoAudio(mensaje.id)"
-              @loadedmetadata="resolverDuracionAudio(mensaje.id)"
-              @durationchange="resolverDuracionAudio(mensaje.id)"
-              @ended="terminoAudio(mensaje.id)"
-            />
+        <div v-for="mensaje in mensajes" :key="mensaje.id" class="mensaje" :class="esMiMensaje(mensaje.remitente_id) ? 'mensaje-yo' : 'mensaje-otro'
+          ">
+          <div class="burbuja"
+            :class="{ 'burbuja-media': mensaje.mensaje_tipo === 'imagen' || mensaje.mensaje_tipo === 'audio' }">
+            <img v-if="mensaje.mensaje_tipo === 'imagen' && mensaje.archivo_local_url" class="media-imagen"
+              :src="mensaje.archivo_local_url" :alt="mensaje.archivo_nombre || 'Imagen enviada'" />
+            <audio v-else-if="mensaje.mensaje_tipo === 'audio' && mensaje.archivo_local_url"
+              class="audio-elemento-oculto" :ref="(elemento) => registrarAudio(mensaje.id, elemento)"
+              :src="mensaje.archivo_local_url" preload="metadata" @timeupdate="actualizarProgresoAudio(mensaje.id)"
+              @loadedmetadata="resolverDuracionAudio(mensaje.id)" @durationchange="resolverDuracionAudio(mensaje.id)"
+              @ended="terminoAudio(mensaje.id)" />
             <div v-if="mensaje.mensaje_tipo === 'audio' && mensaje.archivo_local_url" class="reproductor-audio">
-              <ion-button class="audio-play" fill="clear" :aria-label="audioReproduciendo === mensaje.id ? 'Pausar audio' : 'Reproducir audio'" @click.stop="alternarReproduccionAudio(mensaje.id)">
+              <ion-button class="audio-play" fill="clear"
+                :aria-label="audioReproduciendo === mensaje.id ? 'Pausar audio' : 'Reproducir audio'"
+                @click.stop="alternarReproduccionAudio(mensaje.id)">
                 <ion-icon :icon="audioReproduciendo === mensaje.id ? pauseOutline : playOutline" />
               </ion-button>
               <div class="audio-detalles">
-                <div class="onda-audio" role="slider" aria-label="Progreso del audio" @click.stop="buscarAudio($event, mensaje.id)">
-                  <i v-for="(altura, indice) in ondaAudio" :key="indice" :class="{ activa: indice / ondaAudio.length <= progresoAudio(mensaje.id) }" :style="{ height: `${altura}px` }"></i>
+                <div class="onda-audio" role="slider" aria-label="Progreso del audio"
+                  @click.stop="buscarAudio($event, mensaje.id)">
+                  <i v-for="(altura, indice) in ondaAudio" :key="indice"
+                    :class="{ activa: indice / ondaAudio.length <= progresoAudio(mensaje.id) }"
+                    :style="{ height: `${altura}px` }"></i>
                 </div>
                 <div class="audio-tiempo">
                   <span>{{ tiempoAudio(mensaje.id) }}</span>
@@ -99,34 +72,26 @@
                 </div>
               </div>
             </div>
-            <div v-else-if="mensaje.mensaje_tipo !== 'imagen' && mensaje.mensaje_tipo !== 'audio'" class="texto">{{ mensaje.mensaje }}</div>
+            <div v-else-if="mensaje.mensaje_tipo !== 'imagen' && mensaje.mensaje_tipo !== 'audio'" class="texto">{{
+              mensaje.mensaje }}</div>
 
             <div class="hora">
               {{ formatearHora(mensaje.fecha_envio) }}
 
-              <span
-                v-if="esMiMensaje(mensaje.remitente_id)"
-                class="estado-mensaje"
-                :class="{
-                  'mensaje-leido': mensaje.estado_mensaje === 'leido',
-                }"
-              >
+              <span v-if="esMiMensaje(mensaje.remitente_id)" class="estado-mensaje" :class="{
+                'mensaje-leido': mensaje.estado_mensaje === 'leido',
+              }">
                 {{
                   mensaje.estado_mensaje === "leido" ||
-                  mensaje.estado_mensaje === "entregado"
+                    mensaje.estado_mensaje === "entregado"
                     ? "✓✓"
                     : "✓"
                 }}
               </span>
             </div>
-            <ion-button
-              v-if="esMiMensaje(mensaje.remitente_id) && mensaje.mensaje_tipo !== 'eliminado'"
-              class="eliminar-mensaje"
-              fill="clear"
-              size="small"
-              aria-label="Eliminar mensaje para todos"
-              @click="eliminarMensajeParaTodos(mensaje)"
-            >
+            <ion-button v-if="esMiMensaje(mensaje.remitente_id) && mensaje.mensaje_tipo !== 'eliminado'"
+              class="eliminar-mensaje" fill="clear" size="small" aria-label="Eliminar mensaje para todos"
+              @click="eliminarMensajeParaTodos(mensaje)">
               <ion-icon :icon="trashOutline" />
             </ion-button>
           </div>
@@ -157,78 +122,47 @@
         </div>
       </div>
 
-      <ion-button
-        class="boton-colgar"
-        shape="round"
-        @click="finalizarLlamadaActual"
-      >
+      <ion-button class="boton-colgar" shape="round" @click="finalizarLlamadaActual">
         <ion-icon :icon="callOutline" />
       </ion-button>
     </div>
 
     <div class="barra-mensaje">
-      <input
-        ref="entradaAdjunto"
-        class="entrada-adjunto"
-        type="file"
-        accept="image/jpeg,image/png,image/webp,image/gif,audio/*"
-        @change="seleccionarAdjunto"
-      />
+      <input ref="entradaAdjunto" class="entrada-adjunto" type="file"
+        accept="image/jpeg,image/png,image/webp,image/gif,audio/*" @change="seleccionarAdjunto" />
       <div v-if="archivoPendiente" class="adjunto-pendiente">
-        <span>{{ archivoPendiente.type.startsWith('audio/') ? 'Nota de voz lista para enviar' : archivoPendiente.name }}</span>
+        <span>{{ archivoPendiente.type.startsWith('audio/') ? 'Nota de voz lista para enviar' : archivoPendiente.name
+        }}</span>
         <ion-button fill="clear" size="small" aria-label="Quitar archivo" @click="archivoPendiente = null">
           <ion-icon :icon="closeCircleOutline" />
         </ion-button>
       </div>
-      <ion-button
-        class="boton-adjunto"
-        fill="clear"
-        aria-label="Adjuntar foto o audio"
-        :disabled="enviandoArchivo || grabandoAudio"
-        @click="entradaAdjunto?.click()"
-      >
+      <ion-button class="boton-adjunto" fill="clear" aria-label="Adjuntar foto o audio"
+        :disabled="enviandoArchivo || grabandoAudio" @click="entradaAdjunto?.click()">
         <ion-icon :icon="attachOutline" />
       </ion-button>
-      <ion-button
-        class="boton-adjunto"
-        :class="{ 'grabando-audio': grabandoAudio }"
-        fill="clear"
+      <ion-button class="boton-adjunto" :class="{ 'grabando-audio': grabandoAudio }" fill="clear"
         :aria-label="grabandoAudio ? 'Detener grabación' : 'Grabar audio'"
-        :disabled="enviandoArchivo || Boolean(archivoPendiente)"
-        @click="alternarGrabacionAudio"
-      >
+        :disabled="enviandoArchivo || Boolean(archivoPendiente)" @click="alternarGrabacionAudio">
         <ion-icon :icon="grabandoAudio ? stopOutline : micOutline" />
       </ion-button>
-      <span v-if="grabandoAudio" class="estado-grabacion"><i></i> Grabando {{ formatoTiempoAudio(grabacionSegundos) }}</span>
-      <ion-input
-        v-model="nuevoMensaje"
-        placeholder="Escribe un mensaje..."
-        fill="outline"
-        maxlength="4000"
-        :clear-input="true"
-        :disabled="Boolean(archivoPendiente) || grabandoAudio || enviandoArchivo"
-        @keyup.enter="enviarMensaje"
-      />
+      <span v-if="grabandoAudio" class="estado-grabacion"><i></i> Grabando {{ formatoTiempoAudio(grabacionSegundos)
+      }}</span>
+      <ion-input v-model="nuevoMensaje" placeholder="Escribe un mensaje..." fill="outline" :maxlength="4000"
+        :clear-input="true" :disabled="Boolean(archivoPendiente) || grabandoAudio || enviandoArchivo"
+        @keyup.enter="enviarMensaje" />
 
-      <ion-button
-        shape="round"
-        class="boton-enviar"
+      <ion-button shape="round" class="boton-enviar"
         :disabled="(!nuevoMensaje.trim() && !archivoPendiente) || enviandoArchivo || grabandoAudio"
-        @click="archivoPendiente ? enviarArchivoChat() : enviarMensaje()"
-      >
+        @click="archivoPendiente ? enviarArchivoChat() : enviarMensaje()">
         <ion-icon :icon="sendOutline" />
       </ion-button>
     </div>
 
     <audio ref="audioRemoto" autoplay playsinline></audio>
 
-    <ion-alert
-      :is-open="llamadaEntrante !== null"
-      header="Llamada entrante"
-      :message="mensajeLlamadaEntrante()"
-      :buttons="botonesLlamada"
-      @didDismiss="cerrarLlamadaEntrante"
-    />
+    <ion-alert :is-open="llamadaEntrante !== null" header="Llamada entrante" :message="mensajeLlamadaEntrante()"
+      :buttons="botonesLlamada" @didDismiss="cerrarLlamadaEntrante" />
   </ion-page>
 </template>
 
@@ -858,7 +792,7 @@ const obtenerIceCandidatesWebRTC = async () => {
             sdpMid: candidato.sdp_mid,
             sdpMLineIndex:
               candidato.sdp_m_line_index === null ||
-              candidato.sdp_m_line_index === undefined
+                candidato.sdp_m_line_index === undefined
                 ? null
                 : Number(candidato.sdp_m_line_index),
           }),
@@ -1906,6 +1840,9 @@ const cargarConversacion = async () => {
     nombre: "Chat",
     avatar: "",
     descripcion: "",
+    telefono: "",
+    ultimaConexion: null,
+    enLinea: false,
   };
 
   mensajes.value = [];
@@ -2190,20 +2127,14 @@ onUnmounted(() => {
   min-height: 100%;
   position: relative;
   z-index: 1;
-  background: var(
-    --app-chat-wallpaper,
-    radial-gradient(
-      circle at 20% 20%,
-      rgba(16, 185, 129, 0.07),
-      transparent 30%
-    ),
-    radial-gradient(
-      circle at 80% 80%,
-      rgba(6, 182, 212, 0.07),
-      transparent 30%
-    ),
-    #090d16
-  );
+  background: var(--app-chat-wallpaper,
+      radial-gradient(circle at 20% 20%,
+        rgba(16, 185, 129, 0.07),
+        transparent 30%),
+      radial-gradient(circle at 80% 80%,
+        rgba(6, 182, 212, 0.07),
+        transparent 30%),
+      #090d16);
   background-size: cover;
   background-position: center;
 }
@@ -2340,7 +2271,9 @@ onUnmounted(() => {
 }
 
 @keyframes pulso-grabacion {
-  50% { opacity: 0.35; }
+  50% {
+    opacity: 0.35;
+  }
 }
 
 .eliminar-mensaje {

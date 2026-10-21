@@ -20,20 +20,15 @@
           <div class="mi-historia-card">
             <!-- AVATAR Y BOTÓN DE VER/AGREGAR -->
             <div class="mi-avatar-wrapper" @click="abrirMiHistoria">
-              <ion-avatar
-                :class="['mi-avatar', { 'con-historias': misHistorias.length }]"
-              >
+              <ion-avatar :class="['mi-avatar', { 'con-historias': misHistorias.length }]">
                 <img v-if="miAvatar" :src="miAvatar" alt="Mi Avatar" />
               </ion-avatar>
             </div>
 
             <!-- TEXTO E INFORMACIÓN -->
-            <div
-              class="info-historia"
-              @click="
-                misHistorias.length ? abrirMiHistoria() : agregarHistoria()
-              "
-            >
+            <div class="info-historia" @click="
+              misHistorias.length ? abrirMiHistoria() : agregarHistoria()
+              ">
               <h2>Mi historia</h2>
               <p>
                 {{
@@ -46,21 +41,11 @@
 
             <!-- Acciones de estado: texto y foto/video -->
             <div class="acciones-mi-historia">
-              <ion-button
-                fill="clear"
-                class="btn-accion"
-                aria-label="Crear estado de texto"
-                @click="agregarHistoria"
-              >
+              <ion-button fill="clear" class="btn-accion" aria-label="Crear estado de texto" @click="agregarHistoria">
                 <ion-icon :icon="createOutline" />
               </ion-button>
-              <ion-button
-                fill="clear"
-                class="btn-accion"
-                aria-label="Crear estado con foto o video"
-                :disabled="publicando"
-                @click="seleccionarArchivo"
-              >
+              <ion-button fill="clear" class="btn-accion" aria-label="Crear estado con foto o video"
+                :disabled="publicando" @click="seleccionarArchivo">
                 <ion-icon :icon="cameraOutline" />
               </ion-button>
             </div>
@@ -71,10 +56,13 @@
           <h3>Historias programadas</h3>
           <article v-for="item in estadosProgramados" :key="item.id" class="programado-item">
             <div>
-              <strong>{{ item.tipo === 'texto' ? (item.contenido || 'Historia de texto') : item.nombre_original }}</strong>
-              <small>{{ formatearFecha(item.programar_en) }} · {{ item.duracion_horas }} h{{ Number(item.repetir_semanal) ? ' · Semanal' : '' }}</small>
+              <strong>{{ item.tipo === 'texto' ? (item.contenido || 'Historia de texto') : item.nombre_original
+                }}</strong>
+              <small>{{ formatearFecha(item.programar_en) }} · {{ item.duracion_horas }} h{{
+                Number(item.repetir_semanal) ? ' · Semanal' : '' }}</small>
             </div>
-            <ion-button fill="clear" color="danger" :disabled="publicando" @click="cancelarProgramado(item.id)">Cancelar</ion-button>
+            <ion-button fill="clear" color="danger" :disabled="publicando"
+              @click="cancelarProgramado(item.id)">Cancelar</ion-button>
           </article>
         </section>
 
@@ -83,12 +71,8 @@
           <h3>Historias recientes</h3>
 
           <div class="historias">
-            <div
-              v-for="historia in historiasNoVistas"
-              :key="historia.usuario_id"
-              class="historia"
-              @click="abrirHistoria(historia)"
-            >
+            <div v-for="historia in historiasNoVistas" :key="historia.usuario_id" class="historia"
+              @click="abrirHistoria(historia)">
               <div class="historia-avatar no-vista">
                 <img v-if="historia.avatar" :src="historia.avatar" />
               </div>
@@ -102,12 +86,8 @@
           <h3>Historias vistas</h3>
 
           <div class="historias">
-            <div
-              v-for="historia in historiasVistas"
-              :key="historia.usuario_id"
-              class="historia"
-              @click="abrirHistoria(historia)"
-            >
+            <div v-for="historia in historiasVistas" :key="historia.usuario_id" class="historia"
+              @click="abrirHistoria(historia)">
               <div class="historia-avatar vista">
                 <img v-if="historia.avatar" :src="historia.avatar" />
               </div>
@@ -117,21 +97,13 @@
           </div>
         </div>
 
-        <div
-          v-if="!historiasNoVistas.length && !historiasVistas.length"
-          class="sin-historias"
-        >
+        <div v-if="!historiasNoVistas.length && !historiasVistas.length" class="sin-historias">
           <span>No hay historias de otros usuarios</span>
         </div>
       </div>
 
-      <input
-        ref="entradaArchivo"
-        class="entrada-archivo"
-        type="file"
-        accept="image/*,video/*"
-        @change="publicarArchivo"
-      />
+      <input ref="entradaArchivo" class="entrada-archivo" type="file" accept="image/*,video/*"
+        @change="publicarArchivo" />
 
       <!-- MODAL PARA CREAR ESTADO -->
       <ion-modal :is-open="mostrarModal" @didDismiss="cerrarModal">
@@ -148,8 +120,7 @@
             <ion-buttons slot="end">
               <ion-button
                 :disabled="publicando || (!contenidoHistoria.trim() && !archivoSeleccionado) || (programarHistoria && !fechaHoraProgramada)"
-                @click="publicarHistoria"
-              >
+                @click="publicarHistoria">
                 {{ publicando ? "Guardando..." : programarHistoria ? "Programar" : "Publicar" }}
               </ion-button>
             </ion-buttons>
@@ -159,13 +130,8 @@
         <ion-content class="modal-historia">
           <div class="contenido-modal">
             <ion-item class="campo-historia" lines="none">
-              <ion-textarea v-if="!archivoSeleccionado"
-                v-model="contenidoHistoria"
-                placeholder="Escribe una actualización..."
-                :auto-grow="true"
-                :rows="6"
-                maxlength="700"
-              ></ion-textarea>
+              <ion-textarea v-if="!archivoSeleccionado" v-model="contenidoHistoria"
+                placeholder="Escribe una actualización..." :auto-grow="true" :rows="6" :maxlength="700"></ion-textarea>
               <div v-else class="archivo-seleccionado">{{ archivoSeleccionado.name }}</div>
             </ion-item>
             <ion-item lines="none">
@@ -173,11 +139,16 @@
               <ion-toggle v-model="programarHistoria" />
             </ion-item>
             <template v-if="programarHistoria">
-              <ion-item lines="none"><ion-label position="stacked">Fecha y hora</ion-label><ion-input v-model="fechaHoraProgramada" type="datetime-local" /></ion-item>
-              <ion-item lines="none"><ion-label position="stacked">Duración (24 a 168 horas)</ion-label><ion-input v-model.number="duracionHoras" type="number" min="24" max="168" /></ion-item>
-              <ion-item lines="none"><ion-label>Repetir semanalmente</ion-label><ion-toggle v-model="repetirSemanal" /></ion-item>
-              <ion-item v-if="repetirSemanal" lines="none"><ion-label position="stacked">Repetir hasta</ion-label><ion-input v-model="repetirHasta" type="date" /></ion-item>
-              <p v-if="repetirSemanal" class="ayuda-programacion">Se repetirá el mismo día y hora cada semana hasta la fecha indicada.</p>
+              <ion-item lines="none"><ion-label position="stacked">Fecha y hora</ion-label><ion-input
+                  v-model="fechaHoraProgramada" type="datetime-local" /></ion-item>
+              <ion-item lines="none"><ion-label position="stacked">Duración (24 a 168 horas)</ion-label><ion-input
+                  v-model.number="duracionHoras" type="number" min="24" max="168" /></ion-item>
+              <ion-item lines="none"><ion-label>Repetir semanalmente</ion-label><ion-toggle
+                  v-model="repetirSemanal" /></ion-item>
+              <ion-item v-if="repetirSemanal" lines="none"><ion-label position="stacked">Repetir
+                  hasta</ion-label><ion-input v-model="repetirHasta" type="date" /></ion-item>
+              <p v-if="repetirSemanal" class="ayuda-programacion">Se repetirá el mismo día y hora cada semana hasta la
+                fecha indicada.</p>
             </template>
           </div>
         </ion-content>
@@ -828,13 +799,51 @@ ion-content {
   height: 32px;
 }
 
-.seccion-programados { margin: 22px 4px 0; }
-.seccion-programados h3 { color: #fff; font-size: 15px; font-weight: 650; }
-.programado-item { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin: 8px 0; padding: 10px 12px; border-radius: 14px; background: rgba(255,255,255,.05); color: #fff; }
-.programado-item div { min-width: 0; display: flex; flex-direction: column; gap: 5px; }
-.programado-item strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.programado-item small, .ayuda-programacion { color: #8993a5; }
-.archivo-seleccionado { padding: 14px; color: #fff; overflow-wrap: anywhere; }
+.seccion-programados {
+  margin: 22px 4px 0;
+}
+
+.seccion-programados h3 {
+  color: #fff;
+  font-size: 15px;
+  font-weight: 650;
+}
+
+.programado-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, .05);
+  color: #fff;
+}
+
+.programado-item div {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.programado-item strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.programado-item small,
+.ayuda-programacion {
+  color: #8993a5;
+}
+
+.archivo-seleccionado {
+  padding: 14px;
+  color: #fff;
+  overflow-wrap: anywhere;
+}
 
 .seccion-historias {
   margin-top: 24px;

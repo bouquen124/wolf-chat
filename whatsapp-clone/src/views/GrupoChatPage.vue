@@ -6,7 +6,8 @@
           <ion-back-button default-href="/grupos" />
         </ion-buttons>
         <div class="header-contacto">
-          <button v-if="grupo.rol === 'administrador'" class="avatar-ring-header avatar-cambiable" type="button" aria-label="Cambiar foto del grupo" @click="entradaFotoGrupo?.click()">
+          <button v-if="grupo.rol === 'administrador'" class="avatar-ring-header avatar-cambiable" type="button"
+            aria-label="Cambiar foto del grupo" @click="entradaFotoGrupo?.click()">
             <ion-avatar class="avatar-header">
               <img v-if="grupo.foto" :src="grupo.foto" />
             </ion-avatar>
@@ -17,36 +18,21 @@
           </div>
           <ion-title>{{ grupo.nombre }}</ion-title>
         </div>
-        <ion-button
-          slot="end"
-          fill="clear"
-          class="boton-integrantes"
-          aria-label="Ver integrantes del grupo"
-          @click="abrirIntegrantes"
-        >
+        <ion-button slot="end" fill="clear" class="boton-integrantes" aria-label="Ver integrantes del grupo"
+          @click="abrirIntegrantes">
           <ion-icon :icon="peopleOutline" />
         </ion-button>
-        <ion-button
-          slot="end"
-          fill="clear"
-          class="boton-salir"
-          aria-label="Salir del grupo"
-          @click="salirDelGrupo"
-        >
+        <ion-button slot="end" fill="clear" class="boton-salir" aria-label="Salir del grupo" @click="salirDelGrupo">
           <ion-icon :icon="exitOutline" />
         </ion-button>
       </ion-toolbar>
     </ion-header>
 
-    <input ref="entradaFotoGrupo" class="entrada-foto-grupo" type="file" accept="image/jpeg,image/png,image/webp" @change="actualizarFotoGrupo" />
+    <input ref="entradaFotoGrupo" class="entrada-foto-grupo" type="file" accept="image/jpeg,image/png,image/webp"
+      @change="actualizarFotoGrupo" />
 
-    <ion-modal
-      :is-open="mostrarIntegrantes"
-      :initial-breakpoint="0.6"
-      :breakpoints="[0, 0.6, 0.9]"
-      :handle="true"
-      @didDismiss="cerrarIntegrantes"
-    >
+    <ion-modal :is-open="mostrarIntegrantes" :initial-breakpoint="0.6" :breakpoints="[0, 0.6, 0.9]" :handle="true"
+      @didDismiss="cerrarIntegrantes">
       <ion-header class="glass-header">
         <ion-toolbar>
           <ion-buttons slot="start">
@@ -63,14 +49,8 @@
           {{ errorIntegrantes }}
         </div>
         <ion-list v-else class="integrantes-lista">
-          <ion-item
-            v-for="integrante in integrantes"
-            :key="integrante.id"
-            button
-            :detail="false"
-            lines="none"
-            @click="abrirPerfilIntegrante(integrante)"
-          >
+          <ion-item v-for="integrante in integrantes" :key="integrante.id" button :detail="false" lines="none"
+            @click="abrirPerfilIntegrante(integrante)">
             <ion-avatar slot="start">
               <img v-if="integrante.foto" :src="integrante.foto" :alt="integrante.nombre" />
             </ion-avatar>
@@ -89,36 +69,27 @@
       </ion-content>
     </ion-modal>
 
-    <PerfilContactoModal
-      :visible="mostrarPerfilIntegrante"
-      :perfil="perfilIntegranteActual"
-      @cerrar="cerrarPerfilIntegrante"
-    />
+    <PerfilContactoModal :visible="mostrarPerfilIntegrante" :perfil="perfilIntegranteActual"
+      @cerrar="cerrarPerfilIntegrante" />
 
     <ion-content ref="contenido" class="chat-content">
       <div class="glow-emerald"></div>
       <div class="glow-cyan"></div>
 
       <div class="mensajes">
-        <div
-          v-for="mensaje in mensajes"
-          :key="mensaje.id"
-          :class="[
-            'mensaje',
-            mensaje.mensaje_tipo === 'sistema'
-              ? 'mensaje-sistema'
-              : esMiMensaje(mensaje.remitente_id)
-                ? 'mensaje-yo'
-                : 'mensaje-otro',
-          ]"
-        >
+        <div v-for="mensaje in mensajes" :key="mensaje.id" :class="[
+          'mensaje',
+          mensaje.mensaje_tipo === 'sistema'
+            ? 'mensaje-sistema'
+            : esMiMensaje(mensaje.remitente_id)
+              ? 'mensaje-yo'
+              : 'mensaje-otro',
+        ]">
           <div class="burbuja">
-            <strong
-              v-if="
-                mensaje.mensaje_tipo !== 'sistema' &&
-                !esMiMensaje(mensaje.remitente_id)
-              "
-            >
+            <strong v-if="
+              mensaje.mensaje_tipo !== 'sistema' &&
+              !esMiMensaje(mensaje.remitente_id)
+            ">
               {{ mensaje.nombre }} {{ mensaje.apellido || "" }}
             </strong>
 
@@ -126,14 +97,11 @@
 
             <small>
               {{ formatearHora(mensaje.fecha_envio) }}
-              <span
-                v-if="esMiMensaje(mensaje.remitente_id)"
-                class="estado-mensaje"
-                :class="{ 'mensaje-leido': mensaje.estado_mensaje === 'leido' }"
-              >
+              <span v-if="esMiMensaje(mensaje.remitente_id)" class="estado-mensaje"
+                :class="{ 'mensaje-leido': mensaje.estado_mensaje === 'leido' }">
                 {{
                   mensaje.estado_mensaje === "leido" ||
-                  mensaje.estado_mensaje === "entregado"
+                    mensaje.estado_mensaje === "entregado"
                     ? "✓✓"
                     : "✓"
                 }}
@@ -146,17 +114,9 @@
 
     <ion-footer class="glass-footer">
       <div class="barra-mensaje">
-        <ion-input
-          v-model="nuevoMensaje"
-          placeholder="Escribe un mensaje..."
-          @keyup.enter="enviarMensaje"
-        />
+        <ion-input v-model="nuevoMensaje" placeholder="Escribe un mensaje..." @keyup.enter="enviarMensaje" />
 
-        <ion-button
-          class="send-button"
-          :disabled="enviando"
-          @click="enviarMensaje"
-        >
+        <ion-button class="send-button" :disabled="enviando" @click="enviarMensaje">
           <ion-icon :icon="sendOutline" />
         </ion-button>
       </div>
@@ -196,6 +156,7 @@ interface Grupo {
   conversacion_id: number;
   nombre: string;
   foto: string | null;
+  rol: string;
 }
 
 interface Mensaje {
@@ -215,11 +176,10 @@ interface Integrante {
   nombre: string;
   apellido: string | null;
   foto: string | null;
-  rol?: string;
+  rol: string;
   descripcion?: string | null;
   ultima_conexion?: string | null;
   en_linea?: boolean;
-  rol: string;
 }
 
 const route = useRoute();
@@ -249,6 +209,7 @@ const grupo = ref<Grupo>({
   conversacion_id: conversacionId,
   nombre: "Grupo",
   foto: null,
+  rol: "",
 });
 
 const nuevoMensaje = ref("");
@@ -807,10 +768,38 @@ onUnmounted(() => {
   background-position: center;
 }
 
-.avatar-cambiable { position: relative; box-sizing: border-box; display: grid; place-items: center; border: 0; padding: 2px; background: transparent; cursor: pointer; }
-.avatar-cambiable > span { position: absolute; right: -2px; bottom: -2px; width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; color: #fff; background: var(--app-accent-secondary, #06b6d4); border: 2px solid #090d16; }
-.avatar-cambiable > span ion-icon { font-size: 11px; }
-.entrada-foto-grupo { display: none; }
+.avatar-cambiable {
+  position: relative;
+  box-sizing: border-box;
+  display: grid;
+  place-items: center;
+  border: 0;
+  padding: 2px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.avatar-cambiable>span {
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  background: var(--app-accent-secondary, #06b6d4);
+  border: 2px solid #090d16;
+}
+
+.avatar-cambiable>span ion-icon {
+  font-size: 11px;
+}
+
+.entrada-foto-grupo {
+  display: none;
+}
 
 .mensaje {
   display: flex;
@@ -840,11 +829,9 @@ onUnmounted(() => {
 }
 
 .mensaje-yo .burbuja {
-  background: linear-gradient(
-    135deg,
-    rgba(16, 185, 129, 0.28),
-    rgba(6, 182, 212, 0.22)
-  );
+  background: linear-gradient(135deg,
+      rgba(16, 185, 129, 0.28),
+      rgba(6, 182, 212, 0.22));
   border-color: rgba(16, 185, 129, 0.18);
   border-bottom-right-radius: 5px;
 }
